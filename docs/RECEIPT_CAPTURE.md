@@ -73,7 +73,7 @@ $env:EXPO_PUBLIC_RECEIPT_CAMERA_ENABLED = '1'
 npm.cmd run android -- --project-app
 ```
 
-The local companion connection additionally requires a development runtime. Restart Metro after changing these flags, then open Activity → Setup beside Review receipt and choose Recheck after pairing. Its accessible name is Recheck connection. The app reads only its known private connection file, validates the exact loopback URL and schema, and sends no recognition request merely because that file exists. Restarting or repairing the helper needs a new verified pairing/recheck; the app never substitutes a remote endpoint.
+The local companion connection additionally requires a development runtime. Restart Metro after changing these flags, then open Wallet > Tools > Connections, choose Setup beside Review receipt, and choose Recheck after pairing. Its accessible name is Recheck connection. The app reads only its known private connection file, validates the exact loopback URL and schema, and sends no recognition request merely because that file exists. Restarting or repairing the helper needs a new verified pairing/recheck; the app never substitutes a remote endpoint.
 
 Clear that run's matching device pairing before requesting its owned stop, following the companion guide. Do not remove another run's forwarding or stop a process by a broad name. A confirmed post-stop summary can support explicit cleanup of that same stale pairing; uncertain evidence remains available for inspection.
 

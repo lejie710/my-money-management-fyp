@@ -4,17 +4,28 @@ A React Native money-management project rebuilt from a 2024 final-year project, 
 
 The ordinary app starts with an **empty device-local wallet**. You can record income, expenses and debt payments without signing in or running a separate service. Existing saved wallets and earlier supported data are preserved when reopening or migrating; a change to the first-launch default does not replace them.
 
+## Screenshots
+
+Android screenshots use fictional records to illustrate the app. A fresh installation starts with an empty wallet.
+
+| Activity                                                                                        | Category budgets                                                                                       |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| ![All-time activity and wallet balance](docs/images/activity.png)                               | ![October category budgets](docs/images/plan.png)                                                      |
+| An all-time overview across 277 records, with income, expenses and debt payments kept distinct. | An October food budget with exact spending and remaining amounts; Shopping is over its separate limit. |
+
+See [Reports, wallet settings and the device forecast](docs/UI_DESIGN.md#native-android-gallery) for the other native screens. These captures use one consistent MYR wallet as of 18 October 2026.
+
 ## What works where
 
-| Capability | Current implementation | Requirements and boundaries |
-| --- | --- | --- |
-| Everyday finances | Transactions, eight currencies, categories, calendar budgets, one savings goal and reconciled reports | Device-local records and exact minor-unit amounts; no account or server required |
-| Calculators and projections | Illustrative cash-flow score, what-if simulator, loan repayment schedule and six-month recorded-expense forecast | Calculations run on the device; estimates do not change saved finances |
-| Native tools | Achievements, reminders, transaction photos, selected contact/place labels, PDF export and transaction-summary QR | Installed project app and relevant permissions; map tiles/address lookup need network/provider availability |
-| Optional accounts and backup | Firebase sign-in, separate account wallets, explicit guest-wallet copying, and manual backup/restore with optional photos | Configure your own Firebase project or the documented local emulators; ordinary edits stay on the device |
-| Receipt recognition | Windows OCR or Google Cloud Vision, followed by editable suggestions and explicit expense confirmation | A paired companion; cloud recognition requires explicit selection and your own host-side key; manual entry remains available |
-| Financial assistant | Local-model or OpenAI explanations of selected calculated report facts | A paired companion and the chosen provider's prerequisites; read-only responses do not change finances |
-| Optional Prophet forecast | Flask/Prophet evaluates completed monthly expense history and returns an alternative projection | Explicit paired Windows service with its own Python environment; the device forecast remains available |
+| Capability                   | Current implementation                                                                                                    | Requirements and boundaries                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Everyday finances            | Transactions, eight currencies, categories, calendar budgets, one savings goal and reconciled reports                     | Device-local records and exact minor-unit amounts; no account or server required                                             |
+| Calculators and projections  | Illustrative cash-flow score, what-if simulator, loan repayment schedule and six-month recorded-expense forecast          | Calculations run on the device; estimates do not change saved finances                                                       |
+| Native tools                 | Achievements, reminders, transaction photos, selected contact/place labels, PDF export and transaction-summary QR         | Installed project app and relevant permissions; map tiles/address lookup need network/provider availability                  |
+| Optional accounts and backup | Firebase sign-in, separate account wallets, explicit guest-wallet copying, and manual backup/restore with optional photos | Configure your own Firebase project or the documented local emulators; ordinary edits stay on the device                     |
+| Receipt recognition          | Windows OCR or Google Cloud Vision, followed by editable suggestions and explicit expense confirmation                    | A paired companion; cloud recognition requires explicit selection and your own host-side key; manual entry remains available |
+| Financial assistant          | Local-model or OpenAI explanations of selected calculated report facts                                                    | A paired companion and the chosen provider's prerequisites; read-only responses do not change finances                       |
+| Optional Prophet forecast    | Flask/Prophet evaluates completed monthly expense history and returns an alternative projection                           | Explicit paired Windows service with its own Python environment; the device forecast remains available                       |
 
 [Original service integrations](docs/ORIGINAL_SERVICE_INTEGRATIONS.md) explains how Firebase, OpenAI, Google Vision and Flask/Prophet fit alongside the local experience. Each option requires deliberate configuration. No original account, API key or paid service is needed for the ordinary wallet. Hosted Firebase and live OpenAI/Vision calls remain unverified; the verification record separates local, emulated and injected-provider checks.
 
@@ -27,7 +38,7 @@ The ordinary app starts with an **empty device-local wallet**. You can record in
 
 Configured services add useful shortcuts to the relevant screens. A configured connection means its settings are present; availability is checked when the feature is requested. The main header stays focused on the wallet and shows meaningful action or recovery feedback without a permanent readiness message.
 
-The [UI guide](docs/UI_DESIGN.md) describes the Apple-inspired grouping, platform fonts, readable amounts and keyboard-aware sheets. The current local workflow has passed an Android walkthrough. **The screenshot gallery is pending completion of the required optional integrations.** Gallery screenshots will use fictional records with their illustrative purpose disclosed.
+The [UI guide](docs/UI_DESIGN.md) describes the Apple-inspired grouping, platform fonts, readable amounts and keyboard-aware sheets, with additional native screens. [Verification](VERIFICATION.md) records the completed local and optional-service walkthroughs and their limits.
 
 ## Run and study the Android app
 

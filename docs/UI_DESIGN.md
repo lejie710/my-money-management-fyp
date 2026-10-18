@@ -6,7 +6,7 @@ The interface uses light grouped surfaces, platform typography, readable money a
 
 An ordinary first launch creates an empty local wallet with predefined categories, no transactions, no budgets and no savings target. No account or companion is needed. Existing wallets take precedence over the default seed, including supported migration stores. Changing the default does not clear data, convert an existing sample wallet into a real one or fabricate a new history.
 
-Existing sample wallets remain explicitly labelled because sample mode has different achievement behavior. Verification fixtures and any future screenshot dataset are separate, deliberately selected data. The ordinary empty state must remain useful without them.
+Existing sample wallets remain explicitly labelled because sample mode has different achievement behavior. Verification fixtures and the gallery dataset are separate, deliberately prepared data. The ordinary empty state must remain useful without them.
 
 ## Shared visual language
 
@@ -78,12 +78,23 @@ Loading, error, empty and content states stay distinct. Unconfirmed saved data m
 - Currency restrictions, reset confirmation and owned-resource cleanup retain their existing behavior.
 - An inactive period can carry an earlier balance, and missing records do not prove real-world inactivity.
 
-## Verification and screenshot status
+## Verification
 
 At the earlier empty-wallet UI checkpoint, focused source tests covered shortcut visibility, Connections navigation, manual fallback, applied report dates, idle-message suppression, account recovery and the empty Activity state. That checkpoint passed 850 JavaScript tests and TypeScript before the current optional-provider integration. The current [verification record](../VERIFICATION.md) tracks the later integrated source gate and native checks; the earlier count does not describe the final integration gate.
 
 At that earlier checkpoint, seven native check groups covered empty first launch, invalid/cancelled and confirmed entry, optional-tool discovery, budget/goal saves, app-process restoration, navigation at font scale 1.3, and a freshly built APK with native PDF generation. Ledger bytes remained identical across read-only tool navigation and across the later restart, font-scale and APK-update checks. [Verification](../VERIFICATION.md) separates these observations from older provider-backed feature evidence.
 
-The screenshot gallery is pending completion of the required optional integrations and a final walkthrough. Diagnostic screenshots are kept outside the repository. Gallery images will show actual rendered screens using fictional records, with that illustrative purpose disclosed. No finished gallery or additional platform coverage is claimed here.
+## Native Android gallery
+
+These full-resolution API 35 screenshots were captured from the implemented Android app on 18 October 2026. They retain the native screen and navigation bars; no labels, amounts or pixels were replaced. [The README](../README.md#screenshots) introduces the Activity and budget views and explains the illustration data.
+
+| October report                                                                                                                                       | Wallet settings                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| ![October report with complete period balances](images/reports.png)                                                                                  | ![Everyday wallet settings in MYR](images/wallet.png)                                                                          |
+| Opening balance RM22,276.00; closing balance RM23,677.70. The selected October range contains records through 18 October, with income of RM4,580.00. | The same RM23,677.70 all-date balance, wallet label and MYR currency. Save is disabled because the form has no pending change. |
+
+The device forecast below uses 18 completed expense months through September 2026 and excludes the partial October month from training. All six future projections are RM2,644.00 for this dataset. This image shows the device calculation; the separately verified optional Prophet result is described in [Verification](../VERIFICATION.md).
+
+![Device forecast of recorded expenses](images/forecast.png)
 
 See [Android setup](ANDROID_SETUP.md) for the build path. Physical-device behavior, iOS and a full screen-reader audit remain unverified.

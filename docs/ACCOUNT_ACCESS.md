@@ -20,7 +20,7 @@ The app does not add its own encryption layer to AsyncStorage or its local finan
 
 ## Use the account screen
 
-Open Wallet → Account. With account mode disabled, the screen identifies the guest wallet and explains that an account service is not configured. Guest financial features remain available.
+Open Wallet > Tools > Connections > Account access. When already signed in, that row is labelled Manage account; configured accounts also have a Wallet account shortcut. With account mode disabled, the account screen identifies the guest wallet and explains that an account service is not configured. Guest financial features remain available.
 
 With either configured account mode enabled, register using an email, password and display name, or sign in to an account in that selected service. A newly encountered account starts with its own empty wallet. If account creation succeeds but its display name cannot be confirmed, the account remains available and Profile offers an explicit name retry. No demographic field is filled automatically.
 
