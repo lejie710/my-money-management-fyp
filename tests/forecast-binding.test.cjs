@@ -69,6 +69,8 @@ test('actual App binds forecast Reports to the full confirmed owner and injected
     './src/ui/components': { Action: 'Action', FormError: 'FormError', Sheet: 'Sheet' },
     './src/ui/theme': { ui: {}, colors: {} },
     './src/ui/AppIcon': { AppIcon: 'AppIcon' },
+    './src/ui/useCloudBackup': { useCloudBackup: () => ({ controller: Object.freeze({}) }) },
+    './src/ui/CloudBackupScreen': { CloudBackupScreen: 'CloudBackupScreen' },
     './src/ui/TransactionEditor': {
       TransactionEditor: 'TransactionEditor',
       newId: () => 'synthetic-editor',
@@ -77,7 +79,15 @@ test('actual App binds forecast Reports to the full confirmed owner and injected
       AccountScreen: 'AccountScreen',
       WalletAccountEntry: 'WalletAccountEntry',
     },
-    './src/ui/AccountAccessGate': { AccountAccessGate: 'AccountAccessGate' },
+    './src/ui/AccountAccessGate': {
+      AccountAccessGate: 'AccountAccessGate',
+      canShowAccountWallet: loadTsSource(path.join(__dirname, '../src/ui/AccountAccessGate.tsx'), {
+        react: host.react,
+        'react-native': native,
+        './components': { Action: 'Action' },
+        './theme': { colors: {}, ui: {} },
+      }).canShowAccountWallet,
+    },
     './legacy/assets/images/money.png': 0,
   };
   for (const name of [
@@ -131,6 +141,66 @@ test('actual App binds forecast Reports to the full confirmed owner and injected
   screen = find(render(), (node) => node.type === 'ReportsScreen');
   assert.equal(screen.props.key, account.finance.ownerToken);
   assert.equal(screen.props.forecastOwnerKey, account.finance.ownerToken);
+  // Resolve current identity directly, without rendering again between a change
+  // and the transport continuation. A stale React projection is insufficient.
+  const identity = {
+    ownerToken: account.finance.ownerToken,
+    ledger,
+    bindingToken: {},
+    identityPending: false,
+    writeInFlight: false,
+    uncertain: false,
+  };
+  let liveView = {
+    phase: 'ready',
+    persistence: 'confirmed',
+    activeOwnerToken: identity.ownerToken,
+  };
+  account.finance.getIdentityState = () => identity;
+  account.controller.getSnapshot = () => liveView;
+  const providers = require('../src/companion/providerContract').validateProviders({
+    ocr: null,
+    assistant: null,
+    forecast: {
+      engine: 'prophet',
+      processing: 'local',
+      version: 'recorded-expense-prophet-v1',
+      maxHistoryMonths: 120,
+    },
+  });
+  const binding = {
+    key: {},
+    providers,
+    forecast: async () => {
+      throw Error('No request is expected in this binding test.');
+    },
+  };
+  account.companion = { phase: 'configured', binding, getCurrent: () => account.companion };
+  screen = find(render(), (node) => node.type === 'ReportsScreen');
+  const current = screen.props.forecastTransportBinding.isCurrent;
+  assert.equal(current(), true);
+  for (const field of ['identityPending', 'writeInFlight', 'uncertain']) {
+    identity[field] = true;
+    assert.equal(current(), false);
+    identity[field] = false;
+  }
+  const savedBinding = identity.bindingToken;
+  identity.bindingToken = {};
+  assert.equal(current(), false);
+  identity.bindingToken = savedBinding;
+  identity.ledger = { ...ledger };
+  assert.equal(current(), false);
+  identity.ledger = ledger;
+  const savedOwner = identity.ownerToken;
+  identity.ownerToken = 'different-owner';
+  assert.equal(current(), false);
+  identity.ownerToken = savedOwner;
+  liveView = { ...liveView, phase: 'switching' };
+  assert.equal(current(), false);
+  liveView = { ...liveView, phase: 'ready' };
+  assert.equal(current(), true);
+  account.companion.binding = { ...binding };
+  assert.equal(current(), false);
   host.unmount();
 });
 

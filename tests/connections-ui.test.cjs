@@ -61,7 +61,7 @@ test('Connections exposes account, receipt, manual and report routes without sta
   let tree = f.render(props);
   assert.deepEqual(calls, []);
   assert.match(text(tree), /Everyday tracking works without a connection/);
-  assert.match(text(tree), /choosing a photo alone sends nothing/);
+  assert.match(text(tree), /choosing a photo alone sends nothing/i);
   assert.equal(byId(tree, 'connections-assistant-status'), undefined);
   byId(tree, 'connections-account').props.onPress();
   nodes(tree)
@@ -70,7 +70,19 @@ test('Connections exposes account, receipt, manual and report routes without sta
   byId(tree, 'connections-manual-entry').props.onPress();
   byId(tree, 'connections-assistant').props.onPress();
   assert.deepEqual(calls, ['account', 'receipt', 'manual', 'reports']);
-  tree = f.render({ ...props, busy: true, connection: { phase: 'configured' } });
+  tree = f.render({
+    ...props,
+    busy: true,
+    connection: {
+      phase: 'configured',
+      binding: {
+        assistant: async () => {
+          throw Error('Navigation must not request an explanation.');
+        },
+        providers: require('../src/companion/providerContract').LEGACY_PROVIDERS,
+      },
+    },
+  });
   for (const id of ['connections-account', 'connections-manual-entry', 'connections-assistant'])
     assert.equal(byId(tree, id).props.disabled, true);
   assert.equal(nodes(tree).find((node) => node.type === 'ReceiptEntry').props.busy, true);
@@ -159,5 +171,123 @@ test('Reports hides the optional assistant shortcut until requested and still pr
   assert.ok(byId(tree, 'report-range-error').props.message);
   byId(tree, 'open-report-assistant').props.onPress();
   assert.deepEqual(ranges.at(-1), applied);
+  f.host.unmount();
+});
+
+test('forecast-only Connections distinguishes unselected receipt and assistant while preserving navigation', () => {
+  const f = setup('ConnectionsScreen', { './ReceiptEntry': { ReceiptEntry: 'ReceiptEntry' } });
+  const calls = [];
+  const connection = {
+    phase: 'configured',
+    binding: {
+      receipt: null,
+      assistant: null,
+      forecast() {
+        throw Error('Navigation must not start Prophet.');
+      },
+      providers: require('../src/companion/providerContract').validateProviders({
+        ocr: null,
+        assistant: null,
+        forecast: {
+          engine: 'prophet',
+          processing: 'local',
+          version: 'recorded-expense-prophet-v1',
+          maxHistoryMonths: 120,
+        },
+      }),
+    },
+  };
+  const tree = f.render({
+    accountState: { provider: 'unconfigured', user: null },
+    connection,
+    busy: false,
+    onBack() {},
+    onAccount() {},
+    onReceipt: () => calls.push('receipt'),
+    onManualEntry: () => calls.push('manual'),
+    onReports: () => calls.push('reports'),
+    onForecast: () => calls.push('forecast'),
+  });
+  assert.match(text(byId(tree, 'connections-receipt-hint')), /Receipt recognition is not selected/);
+  assert.match(text(byId(tree, 'connections-receipt-hint')), /Manual entry is available/);
+  assert.doesNotMatch(
+    text(byId(tree, 'connections-receipt-hint')),
+    /Windows OCR runs|Google Cloud Vision receives/,
+  );
+  assert.match(text(byId(tree, 'connections-assistant-hint')), /No assistant provider is selected/);
+  assert.doesNotMatch(
+    text(byId(tree, 'connections-assistant-hint')),
+    /selected local model|selected OpenAI model/,
+  );
+  assert.equal(byId(tree, 'connections-assistant-status'), undefined);
+  assert.deepEqual(calls, []);
+  nodes(tree)
+    .find((node) => node.type === 'ReceiptEntry')
+    .props.onOpen();
+  byId(tree, 'connections-manual-entry').props.onPress();
+  byId(tree, 'connections-assistant').props.onPress();
+  byId(tree, 'connections-forecast').props.onPress();
+  assert.deepEqual(calls, ['receipt', 'manual', 'reports', 'forecast']);
+  f.host.unmount();
+});
+
+test('Connections describes only the selected local or cloud receipt and assistant providers', () => {
+  const f = setup('ConnectionsScreen', { './ReceiptEntry': { ReceiptEntry: 'ReceiptEntry' } });
+  const contract = require('../src/companion/providerContract');
+  const options = [
+    {
+      providers: contract.LEGACY_PROVIDERS,
+      receipt: /Windows OCR runs on the connected computer/,
+      assistant: /selected local model/,
+      absent: /Google Cloud Vision receives|selected OpenAI model/,
+    },
+    {
+      providers: contract.validateProviders({
+        ocr: { engine: 'google-cloud-vision', processing: 'cloud', maxImageBytes: 6291456 },
+        assistant: { engine: 'openai', processing: 'cloud', model: 'synthetic-model' },
+        forecast: null,
+      }),
+      receipt: /Google Cloud Vision receives the selected image/,
+      assistant: /selected OpenAI model/,
+      absent: /Windows OCR runs|selected local model/,
+    },
+  ];
+  for (const option of options) {
+    const tree = f.render({
+      accountState: { provider: 'unconfigured', user: null },
+      busy: false,
+      connection: {
+        phase: 'configured',
+        binding: {
+          providers: option.providers,
+          receipt: {
+            recognize() {
+              throw Error('Do not recognize on render.');
+            },
+          },
+          assistant() {
+            throw Error('Do not ask on render.');
+          },
+        },
+      },
+      onBack() {},
+      onAccount() {},
+      onReceipt() {},
+      onManualEntry() {},
+      onReports() {},
+    });
+    const receipt = text(byId(tree, 'connections-receipt-hint'));
+    const assistant = text(byId(tree, 'connections-assistant-hint'));
+    assert.match(receipt, option.receipt);
+    assert.match(receipt, /only when you request recognition/);
+    assert.match(receipt, /Choosing a photo alone sends nothing/);
+    assert.match(assistant, option.assistant);
+    assert.match(assistant, /only when you choose Ask/);
+    assert.doesNotMatch(receipt + assistant, option.absent);
+    assert.match(
+      text(byId(tree, 'connections-assistant-status')),
+      /availability is checked when you ask/,
+    );
+  }
   f.host.unmount();
 });

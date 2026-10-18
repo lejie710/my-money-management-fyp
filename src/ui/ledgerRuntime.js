@@ -253,6 +253,15 @@ function createLedgerRuntime({
     restore,
     save,
     getClock,
+    compareAndSave(expectedOwnerToken, expectedLedgerJson, next, message) {
+      if (
+        !ledger ||
+        ownerToken(binding.family, ledger) !== expectedOwnerToken ||
+        JSON.stringify(ledger) !== expectedLedgerJson
+      )
+        return Promise.resolve(false);
+      return save(binding, expectedOwnerToken, next, message);
+    },
     clearSaveError(expectedBinding) {
       if (isBound(expectedBinding)) publish({ saveError: '' });
     },

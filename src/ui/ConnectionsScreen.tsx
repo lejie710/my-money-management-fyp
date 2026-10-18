@@ -15,6 +15,8 @@ export function ConnectionsScreen({
   onReceipt,
   onManualEntry,
   onReports,
+  onForecast,
+  onCloudBackup,
 }: {
   accountState: AccountUiState;
   connection: ReturnType<typeof useCompanionConnection>;
@@ -24,8 +26,18 @@ export function ConnectionsScreen({
   onReceipt(): void;
   onManualEntry(): void;
   onReports(): void;
+  onForecast?(): void;
+  onCloudBackup?(): void;
 }) {
   const accountConfigured = accountState.provider === 'configured';
+  const receiptProvider =
+    connection.phase === 'configured' && connection.binding?.receipt
+      ? connection.binding.providers.ocr
+      : null;
+  const assistantProvider =
+    connection.phase === 'configured' && connection.binding?.assistant
+      ? connection.binding.providers.assistant
+      : null;
   return (
     <Screen>
       <View style={{ marginBottom: 18 }}>
@@ -44,27 +56,43 @@ export function ConnectionsScreen({
         <RowAction
           label={accountState.user ? 'Manage account' : 'Account access'}
           detail={
-            accountConfigured ? 'Open your separate account wallet' : 'Optional local accounts'
+            accountConfigured ? 'Open your separate account wallet' : 'Optional account wallets'
           }
           icon="user"
           disabled={busy}
           onPress={onAccount}
           testID="connections-account"
-          last
+          last={!onCloudBackup}
         />
+        {onCloudBackup ? (
+          <RowAction
+            label="Cloud backup"
+            detail="Copy, back up or restore a wallet"
+            icon="wallet"
+            disabled={busy}
+            onPress={onCloudBackup}
+            testID="connections-cloud-backup"
+            last
+          />
+        ) : null}
       </View>
       <Text style={[ui.hint, ui.smallGap]}>
         {accountConfigured
-          ? 'Account wallets stay on this device. Signing in does not upload or transfer your records.'
+          ? 'Wallet records stay on this device until you explicitly back them up. Signing in does not upload or transfer them.'
           : 'No account service is configured. Your current wallet works without signing in.'}
       </Text>
       <Text style={[styles.section, ui.gap]} accessibilityRole="header">
         Receipts
       </Text>
       <ReceiptEntry connection={connection} busy={busy} onOpen={onReceipt} />
-      <Text style={[ui.hint, ui.smallGap]}>
-        Review a photo and confirm an expense. Recognition needs the local Windows companion;
-        choosing a photo alone sends nothing.
+      <Text style={[ui.hint, ui.smallGap]} testID="connections-receipt-hint">
+        Review a photo and confirm an expense.
+        {!receiptProvider
+          ? ' Receipt recognition is not selected. Manual entry is available.'
+          : receiptProvider.processing === 'cloud'
+            ? ' Google Cloud Vision receives the selected image through the Windows companion only when you request recognition.'
+            : ' Windows OCR runs on the connected computer only when you request recognition.'}
+        {' Choosing a photo alone sends nothing.'}
       </Text>
       <View style={ui.smallGap}>
         <Action
@@ -89,15 +117,38 @@ export function ConnectionsScreen({
           last
         />
       </View>
-      <Text style={[ui.hint, ui.smallGap]}>
-        Calculated facts are available without a model. Explanations need the Windows companion in
-        assistant mode and use only the facts you select and your question.
+      <Text style={[ui.hint, ui.smallGap]} testID="connections-assistant-hint">
+        Calculated facts are available without a model. Explanations use only the facts you select
+        and your question.
+        {!assistantProvider
+          ? ' No assistant provider is selected. Choose a report to review calculated facts.'
+          : assistantProvider.processing === 'cloud'
+            ? ' The selected OpenAI model receives them only when you choose Ask.'
+            : ' The selected local model runs through the Windows companion only when you choose Ask.'}
       </Text>
-      {connection.phase === 'configured' ? (
+      {connection.phase === 'configured' && connection.binding?.assistant ? (
         <Text style={[ui.hint, ui.smallGap]} testID="connections-assistant-status">
-          A local connection is configured. Model availability is checked when you ask.
+          An assistant connection is configured. Model availability is checked when you ask.
         </Text>
       ) : null}
+      <Text style={[styles.section, ui.gap]} accessibilityRole="header">
+        Expense forecasts
+      </Text>
+      <View style={styles.group}>
+        <RowAction
+          label="View expense forecasts"
+          detail="Review recorded monthly spending"
+          icon="reports"
+          disabled={busy}
+          onPress={onForecast ?? onReports}
+          testID="connections-forecast"
+          last
+        />
+      </View>
+      <Text style={[ui.hint, ui.smallGap]}>
+        Device estimates work without a service. When configured, Prophet runs on the Windows
+        companion using the selected monthly totals after your explicit request.
+      </Text>
     </Screen>
   );
 }

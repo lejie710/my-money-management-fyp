@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "ocr": {
+    "engine": "windows-media-ocr"
+  },
+  "assistant": null,
+  "forecast": null
+}

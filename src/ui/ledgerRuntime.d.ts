@@ -55,6 +55,12 @@ export function createLedgerRuntime(options: {
     next: Ledger,
     message: string,
   ): Promise<boolean>;
+  compareAndSave(
+    expectedOwnerToken: string,
+    expectedLedgerJson: string,
+    next: Ledger,
+    message: string,
+  ): Promise<boolean>;
   getClock(): AchievementClock;
   clearSaveError(bindingToken: object): void;
   registerTransitionGuard(bindingToken: object, guard: LedgerTransitionGuard): () => void;

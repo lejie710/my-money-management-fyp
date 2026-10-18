@@ -1,6 +1,6 @@
 # OpenAI adapter
 
-`openaiAdapter.cjs` provides a server-side Chat Completions adapter for the app's existing calculated-facts question contract. It is covered by offline tests but is **not connected to the companion routes, pairing protocol or mobile UI**. Adding a key or changing an environment variable does not enable it in the app. The working assistant continues to use its existing local provider.
+`openaiAdapter.cjs` is an optional server-side Chat Completions adapter for the app's calculated-facts question contract. The companion route and mobile assistant support an explicitly selected OpenAI provider through version 2 private pairing. Local Lemonade/Qwen remains available; a failed local request never switches to a cloud provider. See the [companion guide](../README.md) for server configuration and pairing.
 
 ## Contract
 
@@ -19,20 +19,24 @@ Successful results retain `content` as a JSON string and `finishReason: "stop"`,
 - Refusals, incomplete output, redirects, tools, unknown citations and malformed or oversized responses are rejected. Failures use fixed `OpenAIAdapterError` codes/messages; raw provider errors and keys are not exposed.
 - There are no retries, health probes, warmups or automatic provider fallbacks. A later retry must be an explicit user action.
 
-## Integration still required
+## Companion and mobile boundary
 
-The current route, client and session protocol expect the local Qwen/Lemonade provider. Enabling this adapter requires server-only configuration, deliberate error mapping, a non-secret provider/model descriptor in versioned pairing, and matching provider validation throughout the request/response path. Keep the private pairing token and fixed mobile loopback endpoint. Credentials must remain outside mobile code, pairing files, command arguments and logs.
+The paired descriptor names OpenAI, cloud processing and the explicitly configured model. Requests and cancellations carry `x-mymoney-provider`; the route checks the exact run/provider binding before forwarding a question. Successful responses echo `providerBinding`. The client rejects mismatched bindings, provider identities or requested models, while preserving the actual returned model snapshot.
 
-Before an explicit Ask action, the UI must identify OpenAI and the selected data that will leave the device. Provider, connection, owner or context changes must invalidate the pending session. Preserve calculated facts, semantic checks, the no-write boundary, the existing local path and explicit retries. Add route/client/UI regression coverage before claiming application support.
+Only the server adapter receives a provider credential. It is not a mobile value, pairing field or public environment variable. The same fixed loopback endpoint and per-run companion token remain in use. Private configuration and valid pairing establish configuration, not provider reachability or account access.
 
-No live OpenAI request, model compatibility, account access, response quality, billing behavior or hosted CI result is established by these tests. A separately authorized synthetic live check is needed before claiming live support.
+The panel identifies OpenAI, its selected model and the data-transfer destination before **Ask OpenAI**. Only the visible calculated facts and current question are sent; old replies, raw transactions, photos and contact/location data are excluded. Provider, connection, owner or context changes invalidate pending results. The existing semantic checks and no-write boundary apply to both providers.
+
+Provider authentication failures, rate limits, refusals, incomplete output and bounded malformed responses become deliberate fixed errors. No raw provider error text or key is exposed. Cancellation invalidates the result and aborts the owned request, but cannot guarantee that provider computation or charges were avoided.
+
+The adapter, route, client and UI contracts are verified with injected upstream responses and synthetic local fixtures. No live OpenAI request, account entitlement, real model compatibility, general response quality or billing behavior is established by those tests. A separately authorized synthetic live check is required before claiming live-provider verification.
 
 ## Offline checks
 
 From the repository root:
 
 ```powershell
-node --test --test-concurrency=2 scripts/companion/tests/openai-adapter.test.cjs
+node --test --test-concurrency=2 scripts/companion/tests/openai-adapter.test.cjs tests/provider-integration.test.cjs tests/provider-disclosure-ui.test.cjs
 ```
 
 All provider calls use injected fake fetch functions with invented credentials and model IDs. Tests exercise the real pure financial question protocol, bounded request/response handling, cancellation, deadlines, safe failures and the retained semantic rejection of write claims. No SDK or additional dependency is required.

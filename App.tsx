@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
@@ -23,7 +23,7 @@ import { RemindersScreen } from './src/ui/RemindersScreen';
 import { colors, ui } from './src/ui/theme';
 import { MapPlacePicker } from './src/ui/MapPlacePicker';
 import { useAccountRoot } from './src/ui/useAccountRoot';
-import { AccountAccessGate } from './src/ui/AccountAccessGate';
+import { AccountAccessGate, canShowAccountWallet } from './src/ui/AccountAccessGate';
 import { AccountScreen, WalletAccountEntry } from './src/ui/AccountScreen';
 import { ReportExportSheet } from './src/ui/ReportExportSheet';
 import { TransactionExportSheet } from './src/ui/TransactionExportSheet';
@@ -33,6 +33,9 @@ import { ReceiptCaptureSheet } from './src/ui/ReceiptCaptureSheet';
 import { AssistantPanel } from './src/ui/AssistantPanel';
 import { AppIcon, type IconName } from './src/ui/AppIcon';
 import { ConnectionsScreen } from './src/ui/ConnectionsScreen';
+import { useCloudBackup } from './src/ui/useCloudBackup';
+import { CloudBackupScreen } from './src/ui/CloudBackupScreen';
+import type { ForecastTransportBinding } from './src/forecast/client';
 
 type Tab =
   | 'transactions'
@@ -44,6 +47,7 @@ type Tab =
   | 'achievements'
   | 'account'
   | 'connections'
+  | 'cloud-backup'
   | 'reminders';
 const tabs: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'transactions', label: 'Activity', icon: 'activity' },
@@ -78,6 +82,12 @@ export default function App() {
     },
   });
   const { finance, photos, reminders, exports, companion, receipts, assistant } = account;
+  const cloud = useCloudBackup({
+    finance,
+    accountState: account.accountState,
+    active: account.financialAllowed,
+    hasOpenEditor: () => editorRef.current !== null || receipts.hasOpenDraft(),
+  });
   const {
     ledger,
     loading,
@@ -105,10 +115,56 @@ export default function App() {
     tab === 'achievements' ||
     tab === 'reminders' ||
     tab === 'account' ||
-    tab === 'connections';
+    tab === 'connections' ||
+    tab === 'cloud-backup';
   const selectedTab = isWalletSubpage ? 'wallet' : tab;
   const accountConfigured = account.accountState.provider === 'configured';
-  const companionConfigured = companion.phase === 'configured';
+  const receiptConfigured = companion.phase === 'configured' && Boolean(companion.binding?.receipt);
+  const assistantConfigured =
+    companion.phase === 'configured' && Boolean(companion.binding?.assistant);
+  const forecastTransportBinding = useMemo<ForecastTransportBinding | null>(() => {
+    const binding = companion.binding;
+    const provider = binding?.providers.forecast;
+    const expectedOwner = finance.ownerToken;
+    const sourceLedger = finance.ledger;
+    if (
+      !binding?.forecast ||
+      !provider ||
+      !expectedOwner ||
+      !sourceLedger ||
+      !account.financialAllowed
+    )
+      return null;
+    const expectedIdentityBinding = finance.getIdentityState().bindingToken;
+    return Object.freeze({
+      key: binding.key,
+      transport: binding.forecast,
+      provider,
+      isCurrent: () => {
+        const current = companion.getCurrent();
+        const identity = finance.getIdentityState();
+        return (
+          current.phase === 'configured' &&
+          current.binding === binding &&
+          !identity.identityPending &&
+          !identity.writeInFlight &&
+          !identity.uncertain &&
+          identity.ownerToken === expectedOwner &&
+          identity.bindingToken === expectedIdentityBinding &&
+          identity.ledger === sourceLedger &&
+          canShowAccountWallet(account.controller.getSnapshot(), expectedOwner)
+        );
+      },
+    });
+  }, [
+    companion.binding,
+    companion.getCurrent,
+    finance.ownerToken,
+    finance.ledger,
+    finance.getIdentityState,
+    account.financialAllowed,
+    account.controller,
+  ]);
   const activeAccountName = account.accountState.user
     ? account.accountState.user.displayName || account.accountState.user.email || 'Account wallet'
     : 'Guest wallet';
@@ -131,11 +187,12 @@ export default function App() {
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (!isWalletSubpage) return false;
-      if (!saving && !account.accountState.busy) setTab('wallet');
+      if (!saving && !account.accountState.busy)
+        setTab(tab === 'cloud-backup' ? 'connections' : 'wallet');
       return true;
     });
     return () => subscription.remove();
-  }, [isWalletSubpage, saving, account.accountState.busy]);
+  }, [isWalletSubpage, tab, saving, account.accountState.busy]);
 
   return (
     <View style={styles.root}>
@@ -302,7 +359,8 @@ export default function App() {
                       forecastOwnerKey={finance.ownerToken}
                       getForecastToday={() => getClock().today}
                       ledger={ledger}
-                      showAssistantShortcut={companionConfigured || assistantAccessRequested}
+                      showAssistantShortcut={assistantConfigured || assistantAccessRequested}
+                      forecastTransportBinding={forecastTransportBinding}
                       assistantRequested={assistantAccessRequested}
                       onExport={(range) => {
                         assistant.close();
@@ -319,7 +377,7 @@ export default function App() {
                   {tab === 'transactions' ? (
                     <TransactionsScreen
                       receiptTools={
-                        companionConfigured ? (
+                        receiptConfigured ? (
                           <ReceiptEntry
                             connection={companion}
                             busy={saving}
@@ -339,6 +397,14 @@ export default function App() {
                       }}
                     />
                   ) : null}
+                  {tab === 'cloud-backup' ? (
+                    <CloudBackupScreen
+                      key={finance.ownerToken ?? 'unconfigured'}
+                      controller={cloud.controller}
+                      onBack={() => setTab('connections')}
+                      onAccount={() => setTab('account')}
+                    />
+                  ) : null}
                   {tab === 'connections' ? (
                     <ConnectionsScreen
                       accountState={account.accountState}
@@ -346,6 +412,19 @@ export default function App() {
                       busy={saving || account.accountState.busy}
                       onBack={() => setTab('wallet')}
                       onAccount={() => setTab('account')}
+                      onCloudBackup={() => {
+                        if (saving || editorRef.current || receipts.hasOpenDraft()) return;
+                        exports.close();
+                        assistant.close();
+                        setTab('cloud-backup');
+                      }}
+                      onForecast={() => {
+                        if (saving || editorRef.current || receipts.hasOpenDraft()) return;
+                        exports.close();
+                        assistant.close();
+                        setAssistantAccessRequested(false);
+                        setTab('reports');
+                      }}
                       onReceipt={openReceipt}
                       onManualEntry={() => {
                         setTab('transactions');
@@ -487,7 +566,7 @@ export default function App() {
                 {assistant.panel ? (
                   <Sheet
                     key={assistant.panel.sessionKey}
-                    title="Local financial assistant"
+                    title="Financial assistant"
                     onClose={assistant.closeCurrent}
                   >
                     <AssistantPanel {...assistant.panel} onClose={assistant.closeCurrent} />

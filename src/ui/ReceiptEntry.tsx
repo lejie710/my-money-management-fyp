@@ -22,7 +22,7 @@ export function ReceiptEntry({
     disabled: 'Recognition not enabled',
     'not-configured': 'Connection not set up',
     checking: 'Checking connection…',
-    configured: 'Connection configured',
+    configured: connection.binding?.receipt ? 'Connection configured' : 'Recognition not selected',
     unavailable: 'Connection needs attention',
   }[connection.phase];
   return (

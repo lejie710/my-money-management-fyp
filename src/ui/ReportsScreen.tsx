@@ -7,6 +7,7 @@ import { displayDate } from './TransactionsScreen';
 import { colors, ui } from './theme';
 import { HealthPanel } from './HealthPanel';
 import { ForecastEntry } from './ForecastEntry';
+import type { ForecastTransportBinding } from '../forecast/client';
 
 const firstMonth = '1900-01';
 const lastMonth = '2100-12';
@@ -116,6 +117,7 @@ export function ReportsScreen({
   onAssistant,
   showAssistantShortcut = true,
   assistantRequested = false,
+  forecastTransportBinding = null,
 }: {
   ledger: Ledger;
   forecastOwnerKey: string;
@@ -124,6 +126,7 @@ export function ReportsScreen({
   onAssistant?: (range: { startDate: string; endDate: string }) => void;
   showAssistantShortcut?: boolean;
   assistantRequested?: boolean;
+  forecastTransportBinding?: ForecastTransportBinding | null;
 }) {
   const [month, setMonth] = useState(() => boundedMonth(localDate().slice(0, 7)));
   const [mode, setMode] = useState<'month' | 'custom'>('month');
@@ -507,7 +510,12 @@ export function ReportsScreen({
         )}
       </View>
       <HealthPanel report={report} goal={ledger.goal} />
-      <ForecastEntry ledger={ledger} ownerKey={forecastOwnerKey} getToday={getForecastToday} />
+      <ForecastEntry
+        ledger={ledger}
+        ownerKey={forecastOwnerKey}
+        getToday={getForecastToday}
+        transportBinding={forecastTransportBinding}
+      />
     </Screen>
   );
 }

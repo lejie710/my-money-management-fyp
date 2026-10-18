@@ -28,6 +28,35 @@ function fixture(phase = 'configured', busy = false) {
     connection: {
       phase,
       enabled: phase !== 'disabled',
+      binding:
+        phase === 'configured'
+          ? {
+              receipt: require('../src/receipts/client').createReceiptClient(
+                {
+                  version: 2,
+                  runId: 'receipt-entry-fixture',
+                  url: 'http://127.0.0.1:8787/v1/recognize',
+                  token: 'r'.repeat(43),
+                  providers: {
+                    ocr: {
+                      engine: 'windows-media-ocr',
+                      processing: 'local',
+                      maxImageBytes: 10485760,
+                    },
+                    assistant: null,
+                    forecast: null,
+                  },
+                },
+                {
+                  fetch() {
+                    throw Error('Rendering or navigation must not request recognition.');
+                  },
+                },
+              ),
+              assistant: null,
+              forecast: null,
+            }
+          : null,
       message: 'Configured locally. Availability is checked only when recognition is requested.',
       recheck: async () => {
         calls.recheck++;
@@ -130,5 +159,42 @@ test('configured Activity shortcut stays concise without claiming the companion 
   assert.deepEqual(f.calls, { open: 0, recheck: 0 });
   byId(tree, 'open-receipt-capture').props.onPress();
   assert.equal(f.calls.open, 1);
+  f.host.unmount();
+});
+
+test('forecast-only connection does not advertise recognition and still opens review and connection setup', () => {
+  const f = fixture();
+  f.props.connection.binding = {
+    receipt: null,
+    assistant: null,
+    forecast() {
+      throw Error('Receipt navigation must not request a forecast.');
+    },
+    providers: require('../src/companion/providerContract').validateProviders({
+      ocr: null,
+      assistant: null,
+      forecast: {
+        engine: 'prophet',
+        processing: 'local',
+        version: 'recorded-expense-prophet-v1',
+        maxHistoryMonths: 120,
+      },
+    }),
+  };
+  let tree = f.render();
+  assert.equal(text(byId(tree, 'companion-connection-status')), 'Recognition not selected');
+  assert.match(
+    byId(tree, 'open-receipt-capture').props.accessibilityLabel,
+    /Recognition not selected/,
+  );
+  assert.equal(byId(tree, 'open-receipt-capture').props.disabled, false);
+  assert.deepEqual(f.calls, { open: 0, recheck: 0 });
+  byId(tree, 'open-receipt-capture').props.onPress();
+  byId(tree, 'receipt-connection-details').props.onPress();
+  tree = f.render();
+  assert.equal(byId(tree, 'recheck-companion-connection').props.disabled, false);
+  byId(tree, 'recheck-companion-connection').props.onPress();
+  assert.deepEqual(f.calls, { open: 1, recheck: 1 });
+  assert.equal(text(byId(tree, 'companion-connection-status')), 'Recognition not selected');
   f.host.unmount();
 });

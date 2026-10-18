@@ -26,12 +26,20 @@ export const CONFIG: Readonly<{ apiKey: 'demo-fyp-local'; projectId: 'demo-fyp-l
 export const EMULATOR_URL: 'http://127.0.0.1:9099';
 export type LocalFirebaseAuthAdapter = AccountAuthAdapter & {
   createResetSession(): LocalResetController;
+  getSdkContext(): {
+    app: import('firebase/app').FirebaseApp;
+    auth: import('firebase/auth').Auth;
+    configuration: import('../cloud/config').CloudConfiguration;
+    uid: string;
+  };
+  requestPasswordReset(email: string): Promise<void>;
 };
 export function createFirebaseAuthAdapter(options: {
   runtime: object;
   scope: DataScope;
   storage: ScopedAuthStorage;
   sdk: FirebaseSdkBridge;
+  configuration?: import('../cloud/config').CloudConfiguration;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }): LocalFirebaseAuthAdapter;

@@ -33,53 +33,10 @@ function validateScope(scope) {
   throw new Error('Choose a valid canonical or isolated test reminder scope.');
 }
 
-function encodeReminderOwner(owner) {
-  if (!sameKeys(owner, ['scope', 'actor', 'incarnationId']) || !identifier(owner.incarnationId)) {
-    throw new Error('The reminder owner requires a valid wallet incarnation.');
-  }
-  validateScope(owner.scope);
-  const actor = owner.actor;
-  if (
-    !(sameKeys(actor, ['kind']) && actor.kind === 'local') &&
-    !(sameKeys(actor, ['kind', 'uid']) && actor.kind === 'firebase' && boundedToken(actor.uid, 128))
-  ) {
-    throw new Error('Choose a valid local or account reminder owner.');
-  }
-  return JSON.stringify([
-    owner.scope.kind,
-    owner.scope.kind === 'test' ? owner.scope.namespace : null,
-    actor.kind,
-    actor.kind === 'firebase' ? actor.uid : null,
-    owner.incarnationId,
-  ]);
-}
-
-function decodeReminderOwner(token) {
-  if (!boundedToken(token)) throw new Error('The reminder owner token is invalid.');
-  let values;
-  try {
-    values = JSON.parse(token);
-  } catch {
-    throw new Error('The reminder owner token is invalid.');
-  }
-  if (!Array.isArray(values) || values.length !== 5)
-    throw new Error('The reminder owner token is invalid.');
-  const [scopeKind, namespace, actorKind, uid, incarnationId] = values;
-  if (
-    (scopeKind === 'canonical' && namespace !== null) ||
-    (actorKind === 'local' && uid !== null)
-  ) {
-    throw new Error('The reminder owner token has unexpected context fields.');
-  }
-  const owner = {
-    scope: scopeKind === 'canonical' ? { kind: scopeKind } : { kind: scopeKind, namespace },
-    actor: actorKind === 'local' ? { kind: actorKind } : { kind: actorKind, uid },
-    incarnationId,
-  };
-  if (encodeReminderOwner(owner) !== token)
-    throw new Error('The reminder owner token is not canonical.');
-  return owner;
-}
+const {
+  encodeOwner: encodeReminderOwner,
+  decodeOwner: decodeReminderOwner,
+} = require('../accounts/ownerCodec');
 
 function sameReminderScope(left, right) {
   validateScope(left);

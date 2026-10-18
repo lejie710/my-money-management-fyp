@@ -121,6 +121,10 @@ def forecast(value, engine=run_prophet):
     request = validate_request(value)
     try:
         result = engine(deepcopy(request['history']), list(request['targetMonths']))
+    except ForecastError:
+        raise
+    except TimeoutError:
+        raise ForecastError('TIMEOUT') from None
     except Exception:
         raise ForecastError('MODEL_FAILED') from None
     if not isinstance(result, list) or len(result) != 6:

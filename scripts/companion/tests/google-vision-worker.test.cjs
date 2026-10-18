@@ -509,9 +509,15 @@ test('late response bodies are canceled after timeout or caller cancellation eve
   }
 });
 
-test('the Google provider identity is deliberately rejected by the current Windows-only mobile contract', () => {
+test('the Google provider identity and geometry survive the provider-aware mobile contract', () => {
   const { validateOcrResult } = require(path.join(source, 'src/core/receipt.js'));
   const actual = normalizeVisionResponse(document(), size, 1);
-  assert.throws(() => validateOcrResult(actual), /OCR response/);
+  const accepted = validateOcrResult(actual);
+  assert.deepEqual(accepted, actual);
+  assert.equal(accepted.geometry, 'axis-aligned-envelope-with-original-polygon');
+  assert.throws(
+    () => validateOcrResult({ ...actual, provider: 'unknown-provider' }),
+    /OCR response/,
+  );
   assert.equal(actual.provider, 'google-cloud-vision');
 });

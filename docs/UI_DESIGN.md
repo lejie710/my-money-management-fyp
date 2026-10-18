@@ -42,21 +42,23 @@ The savings goal stays separate and follows the wallet balance without moving or
 
 The applied dates and reconciled balances precede report actions. Opening, closing and all-date wallet balances remain distinct. Category breakdowns preserve their denominators; zero-income ratios remain unavailable rather than inventing a value.
 
-Date edits require Apply. Invalid edits preserve the displayed report, and exports and explanations use its applied range. A configured companion adds the assistant shortcut. The explicit Choose a report route from Connections also exposes that action with guidance; it never guesses a range or sends a question merely by navigating.
+Date edits require Apply. Invalid edits preserve the displayed report, and exports and explanations use its applied range. A configured assistant provider adds the assistant shortcut. The explicit Choose a report route from Connections also exposes that action with guidance; it never guesses a range or sends a question merely by navigating.
 
-The score, simulator and expense forecast remain distinct from recorded facts. The simulator captures its baseline, while forecast selection has its own as-of date and category. Insufficient history stays an honest unavailable state.
+The score, simulator and expense forecast remain distinct from recorded facts. The simulator captures its baseline, while forecast selection has its own as-of date and category. The device forecast works without a service. An optional Prophet comparison uses the applied completed-month history only after the user chooses Run local Prophet; its provider result stays distinct from the device forecast and its historical error figures. Insufficient history stays an honest unavailable state.
 
 ## Wallet and Connections
 
 Wallet groups everyday settings and tools. Categories, achievements, reminders and the loan calculator remain under Tools, alongside Connections. Account access is promoted as a wallet shortcut only when configured. Start fresh stays separate and requires its existing disclosure and confirmation.
 
-Connections keeps three optional areas discoverable:
+Connections keeps optional accounts and services discoverable without making them prerequisites for ordinary tracking:
 
-- **Account:** open local account access. When unconfigured, explain that the current wallet works without signing in instead of presenting unusable sign-in buttons.
-- **Receipts:** choose/review an image, inspect connection details or open ordinary manual entry. Recognition requires an explicit request to the local Windows companion.
-- **Financial assistant:** choose a report, inspect its facts and optionally ask the local model. Calculated facts remain usable without that model.
+- **Account:** open the configured Firebase account service or the standalone local Auth emulator. When unconfigured, explain that the current wallet works without signing in instead of presenting unusable sign-in buttons. Signing in opens a separate account wallet; it does not copy or upload guest records.
+- **Cloud backup:** preview a guest-wallet copy, a manual backup or a restore before explicitly confirming it. Copy and restore require an unchanged empty account wallet. Copying preserves the original guest wallet and does not upload it. Backup photos are a separate opt-in choice, and pending uploads remain visible for deliberate reconciliation.
+- **Receipts:** choose/review an image, inspect connection details or open ordinary manual entry. The screen identifies Windows OCR or Google Cloud Vision and explains the destination before the recognition action. Choosing an image alone sends nothing. Suggestions remain editable and require the existing field, currency and category review before saving an ordinary expense.
+- **Financial assistant:** choose a report, inspect its applied facts and explicitly ask the selected local model or OpenAI through the Windows companion. The screen discloses the selected provider and any cloud destination. Only the current question and selected fact rows are sent; earlier conversation turns are not sent. Calculated facts remain usable without a model, and answers cannot change saved finances.
+- **Expense forecasts:** open the device forecast, review its applied as-of date and category, and optionally request a local Prophet comparison through the configured Windows companion. The service receives the selected completed-month totals after that explicit request; opening the forecast does not start a model fit.
 
-Configured means connection settings are present, not that a provider is reachable. The [original service integration plan](ORIGINAL_SERVICE_INTEGRATIONS.md) describes hosted alternatives that still require implementation; these screens do not enable them by accepting an API key.
+Configured means connection settings are present, not that a provider is reachable or has been verified. OpenAI and Google Vision credentials are configured on the Windows host, not entered in the mobile UI; the paired connection declares the selected capabilities and provider identities. Firebase client setup and its project access rules have their own configuration path. The [original service integration guide](ORIGINAL_SERVICE_INTEGRATIONS.md) explains the implemented options and their prerequisites. Hosted Firebase and live OpenAI/Vision behavior remain outside the completed verification evidence; setup availability is not a claim of a successful live request.
 
 ## Sheets, forms and feedback
 
@@ -78,9 +80,9 @@ Loading, error, empty and content states stay distinct. Unconfirmed saved data m
 
 ## Verification and screenshot status
 
-Focused UI source tests cover shortcut visibility, Connections navigation, manual fallback, applied report dates, idle-message suppression, account recovery and the empty Activity state. The integrated JavaScript suites passed 850 tests and TypeScript passed for this checkpoint.
+At the earlier empty-wallet UI checkpoint, focused source tests covered shortcut visibility, Connections navigation, manual fallback, applied report dates, idle-message suppression, account recovery and the empty Activity state. That checkpoint passed 850 JavaScript tests and TypeScript before the current optional-provider integration. The current [verification record](../VERIFICATION.md) tracks the later integrated source gate and native checks; the earlier count does not describe the final integration gate.
 
-Seven native check groups covered empty first launch, invalid/cancelled and confirmed entry, optional-tool discovery, budget/goal saves, app-process restoration, navigation at font scale 1.3, and a freshly built APK with native PDF generation. Ledger bytes remained identical across read-only tool navigation and across the later restart, font-scale and APK-update checks. [Verification](../VERIFICATION.md) separates these observations from older provider-backed feature evidence.
+At that earlier checkpoint, seven native check groups covered empty first launch, invalid/cancelled and confirmed entry, optional-tool discovery, budget/goal saves, app-process restoration, navigation at font scale 1.3, and a freshly built APK with native PDF generation. Ledger bytes remained identical across read-only tool navigation and across the later restart, font-scale and APK-update checks. [Verification](../VERIFICATION.md) separates these observations from older provider-backed feature evidence.
 
 The screenshot gallery is pending completion of the required optional integrations and a final walkthrough. Diagnostic screenshots are kept outside the repository. Gallery images will show actual rendered screens using fictional records, with that illustrative purpose disclosed. No finished gallery or additional platform coverage is claimed here.
 

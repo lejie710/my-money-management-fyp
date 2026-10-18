@@ -1,6 +1,6 @@
-# Monthly Prophet forecasting foundation
+# Optional local Prophet forecasting
 
-This standalone Python foundation preserves the project's Flask/Prophet approach with explicit monthly inputs and bounded Windows model execution. It is **not connected to the Android forecast panel or paired companion**. Importing these modules does not start a server or fit a model. No provider key or cloud account is needed.
+This optional Python service preserves the project's Flask/Prophet approach with explicit monthly inputs and bounded Windows model execution. It is connected through the authenticated local companion and the forecast panel's explicit Run local Prophet action. Importing these modules does not start a server or fit a model. No provider key or cloud account is needed.
 
 The application continues to use its existing local recorded-expense baselines. This folder does not select Prophet automatically or establish that it is more accurate for a user's records.
 
@@ -46,7 +46,7 @@ Each run keeps its temporary workers and human-readable `summary.json` / `eviden
 
 The as-of month is excluded from both training and predictions. Targets therefore have leads two through seven relative to the final completed training month. The 120-month limit belongs to this optional provider and must be disclosed rather than silently truncating a longer wallet history. Only selected monthly expense totals belong in this request; raw transactions, titles, photos and account identities are unnecessary.
 
-Recorded amounts use integer currency minor units, including whole yen for JPY. Prophet receives approximate floating-point model inputs. Its six finite, bounded outputs are rounded half away from zero to integer minor units. Negative estimates are preserved and explicitly flagged with `hasNegativePredictions` and `negativePredictionPolicy: preserve-and-label`; a future UI must explain them. Responses include model settings and no prediction intervals.
+Recorded amounts use integer currency minor units, including whole yen for JPY. Prophet receives approximate floating-point model inputs. Its six finite, bounded outputs are rounded half away from zero to integer minor units. Negative estimates are preserved and explicitly flagged with `hasNegativePredictions` and `negativePredictionPolicy: preserve-and-label`; the forecast panel labels them as model output rather than possible recorded expense entries. Responses include model settings and no prediction intervals.
 
 The model uses linear growth, at most 25 changepoints, prior scale 0.05 and seed 7. Daily, weekly and yearly seasonality, MCMC and uncertainty sampling are disabled. These are explicit initial settings, not tuned parameters or a forecast-quality guarantee. Month-start targets follow [Prophet's monthly-data guidance](https://facebook.github.io/prophet/docs/non-daily_data.html).
 
@@ -56,20 +56,49 @@ The model uses linear growth, at most 25 changepoints, prior scale 0.05 and seed
 
 The worker is created hidden and suspended, assigned to an owned Windows Job before it runs, and given only its stdin, stdout and diagnostic-sink handles. Kill-on-close owns its native descendants. Cleanup uses exact owned handles, not executable names or a saved PID. The child's allowlisted environment contains required Windows/Python paths and owned temporary/cache locations; it does not inherit provider keys or the parent's full environment.
 
-Input and accepted output are each limited to 64 KiB. A monotonic computation deadline covers input delivery and output collection. Timeout stops the owned Job; bounded cleanup confirmation can take additional time beyond the computation deadline. Unconfirmed cleanup blocks later runner calls. Completed temporary directories remain under `.runtime` for inspection; automatic retention cleanup is not implemented.
+Input and accepted output are each limited to 64 KiB. A monotonic computation deadline covers input delivery and output collection. Timeout stops the owned Job; bounded cleanup confirmation can take additional time beyond the computation deadline. Unconfirmed cleanup blocks later runner calls. Completed temporary directories remain under `.runtime` for inspection; automatic retention cleanup is not implemented. The listening service uses a per-service hashed directory under `.runtime/forecast-fits` so long launcher run names do not push CmdStan output filenames past Windows path limits. Its fit-root path is limited to 120 UTF-16 code units, reserving room for worker and model-generated names; use a shorter checkout path if startup rejects that limit.
 
 For direct Python use, add `tools/forecast` to the importing program's module path and pass a `WindowsProphetRunner` instance as `forecast`'s second argument. The raw `run_prophet` function is also available for controlled model evaluation, but it does not enforce process ownership or a hard deadline and must not be used as an unbounded service runner.
 
-## Flask factory and remaining integration
+## Start through the owned companion
 
-`forecast_service.create_app(token, runner)` returns a Flask application. It requires an explicit private generated token and callable bounded runner; it neither starts a listener nor selects a default runner. Its `POST /v1/forecast` route requires loopback callers without a browser Origin, authenticates before decoding, limits JSON to 64 KiB, rejects duplicate/nonfinite values and allows one outstanding model call. Responses use generic errors and `Cache-Control: no-store`.
+Create `.runtime/providers/prophet.json` with this local-only selection. The interpreter must be the environment where you installed the pinned requirements. Paths in this example are relative to the repository root, where the launch command is run.
 
-There is no service-launch command in this folder. Before enabling application access, implement and verify:
+```json
+{
+  "version": 1,
+  "ocr": null,
+  "assistant": null,
+  "forecast": {
+    "engine": "prophet",
+    "python": ".runtime/forecast-venv/Scripts/python.exe"
+  }
+}
+```
 
-1. An owned loopback service lifecycle, private pairing metadata and authenticated companion routing, without exposing a debug server.
-2. Explicit provider selection and monthly-series consent, with the local result retained when an optional request fails.
-3. Mobile owner/category/context binding, stale-response rejection, cancellation, restart and owner-switch tests. Model requests must never mutate the financial store.
-4. UI disclosure of the history limit, negative estimates and absence of prediction intervals, followed by an Android walkthrough.
-5. A fair comparison using identical historical target dates and leads before making accuracy claims.
+Validate the selection, then start a new owned run:
+
+```powershell
+python scripts/companion/run_companion.py --provider-config .runtime/providers/prophet.json --run-name prophet-demo-001 --check-config
+python scripts/companion/run_companion.py --provider-config .runtime/providers/prophet.json --run-name prophet-demo-001
+```
+
+The owner starts the selected Python service and Node companion on loopback. A fresh private token protects the Python service. A different per-run companion token protects device requests. Neither token goes in an Expo environment variable, command argument, or public log. The Python service does not expose Flask's debugger. On Windows, its base interpreter starts with isolated/no-site flags, is assigned to the owner Job, and only then receives private startup configuration and loads the selected environment's packages.
+
+Follow the [companion pairing guide](../../scripts/companion/README.md) to pair the exact debug emulator. Enable `EXPO_PUBLIC_LOCAL_COMPANION=1` before starting its Metro session, then open Wallet > Connections and recheck. In Reports > Open expense forecast, apply a valid date/category and choose Run local Prophet. The device calculation remains visible and works without the service. Starting the companion or opening the panel does not request a fit.
+
+A version 2 connection advertises the exact local Prophet provider/version and its 120-month limit. Every request carries a binding to that run and provider. The Node route checks it before forwarding any monthly data, and the response echoes it. A changed connection, wallet owner, selected category/date, or relevant source data prevents a late response from appearing. Only currency, dates, and completed monthly totals are forwarded; transaction titles, notes, photos, and account details are not included.
+
+Cancel stops waiting in the UI and sends a request-specific cancellation. The service signals that request's owned worker, terminates its Job in the worker cleanup path, and confirms completion before clearing the active slot. A cancelled request ID cannot start a later fit. If cleanup is uncertain, further fits are blocked until the owner is restarted. The computation limit is 30 seconds; bounded shutdown confirmation can take additional time. Neither cancellation nor a result writes the ledger.
+
+Clear this exact run's device pairing before requesting owner shutdown, using the commands in the companion guide. The owner drains forecast requests, stops the local service, and records `forecastStopped`, `ownedProcessesStopped`, and connection/pairing cleanup in its ignored run summary. Do not terminate unrelated Python or Node processes by name.
+
+## Route and verification scope
+
+`forecast_service.create_app(token, runner)` remains available for controlled tests. Its authenticated loopback routes are `GET /health`, `POST /v1/forecast`, and `POST /v1/forecast/cancel`. It rejects browser-origin requests, duplicate/nonfinite JSON, oversized input, replayed IDs, and overlapping fits. Health confirms service readiness, not model accuracy. The raw synchronous `run_prophet` engine must not replace the owned runner in a listening service.
+
+The Python core, Flask test-client, and native Windows ownership/cancellation suites pass 45 tests at the integration checkpoint. The Node protocol, transport, route, and UI tests cover provider matching, explicit submission, cancellation, selected history, response validation, owner changes, and stale results. The actual combined owner-to-Node-to-Flask-to-Prophet path was exercised with synthetic history: a mismatched provider was rejected before fitting, a six-month result completed, cancellation was followed by another matching successful result, and owned shutdown was confirmed. These local results are separate from hosted CI and Android rendering checks; see [Verification](../../VERIFICATION.md) for the current native scope.
+
+The model remains a separate optional method. The ordinary screen's historical MAE belongs to its device baselines, not automatically to Prophet. Use the common-fold evaluation above before comparing quality. iOS and physical-device behavior remain unverified.
 
 The optional packages' authoritative sources are [Prophet on PyPI](https://pypi.org/project/prophet/) and [Flask documentation](https://flask.palletsprojects.com/). Setup installs dependencies locally; it does not deploy a cloud service.

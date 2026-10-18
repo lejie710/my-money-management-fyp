@@ -16,11 +16,12 @@ import {
 import { createFirebaseAuthAdapter, type ScopedAuthStorage } from './firebaseAdapter';
 import type { DataScope } from './identity';
 
-/** No cloud config input: this binding is deliberately local-emulator only. */
+/** Omitting project configuration preserves the original local Auth emulator binding. */
 export function createLocalFirebaseAuthAdapter(options: {
   runtime: object;
   scope: DataScope;
   storage: ScopedAuthStorage;
+  configuration?: import('../cloud/config').CloudConfiguration;
 }) {
   return createFirebaseAuthAdapter({
     ...options,

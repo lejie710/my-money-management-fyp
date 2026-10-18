@@ -1,3 +1,4 @@
+import type { OcrProvider } from '../companion/providerContract';
 import type { PhotoManager } from '../attachments/photoManager';
 import type { ReceiptClient } from '../receipts/client';
 
@@ -17,6 +18,7 @@ export type ReceiptUiBinding = {
   photos: PhotoManager | null;
   capture: ReceiptCaptureServices;
   client: ReceiptClient | null;
+  provider?: OcrProvider | null;
   today: string;
   onCleanupMessage?: (message: string) => void;
   onPhotoCleanupMessage?: (message: string) => void;

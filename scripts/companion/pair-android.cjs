@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { validateProviders } = require('../../src/companion/providerContract');
 const {
   verifyInstalledPackage,
   verifyDebuggablePackage,
@@ -18,7 +19,7 @@ function strictConnection(value, runId) {
       ? /^http:\/\/127\.0\.0\.1:([1-9]\d{0,4})\/v1\/recognize$/.exec(value.url)
       : null;
   if (
-    value?.version !== 1 ||
+    ![1, 2].includes(value?.version) ||
     value.runId !== runId ||
     !match ||
     Number(match[1]) > 65535 ||
@@ -26,13 +27,16 @@ function strictConnection(value, runId) {
     !/^[A-Za-z0-9_-]{43,128}$/.test(value.token)
   )
     throw Error('Connection could not be verified.');
+  if (value.version === 1 && value.providers !== undefined)
+    throw Error('Legacy pairing cannot select cloud providers.');
   return {
     hostPort: Number(match[1]),
     deviceBytes: JSON.stringify({
-      version: 1,
+      version: value.version,
       runId,
       url: `http://127.0.0.1:${DEVICE_PORT}/v1/recognize`,
       token: value.token,
+      ...(value.version === 2 ? { providers: validateProviders(value.providers) } : {}),
     }),
   };
 }

@@ -13,6 +13,7 @@ import subprocess
 import threading
 import time
 import uuid
+from monthly_forecast import ForecastError
 
 HERE = Path(__file__).resolve().parent
 APP_ROOT = HERE.parents[1]
@@ -142,16 +143,54 @@ class WindowsProphetRunner:
         self.blocked = False
         self.last_run = None
         self.capacity = threading.Lock()
+        self.state_lock = threading.Lock()
+        self.active_cancel = None
+        self.closed = False
+        self.idle = threading.Event()
+        self.idle.set()
+
+    def cancel(self):
+        with self.state_lock:
+            if self.active_cancel is None:
+                return False
+            self.active_cancel.set()
+            return True
+
+    def close(self, timeout_seconds=25):
+        with self.state_lock:
+            self.closed = True
+            if self.active_cancel is not None:
+                self.active_cancel.set()
+        completed = self.idle.wait(timeout_seconds)
+        if not completed:
+            self.blocked = True
+        return completed and not self.blocked
 
     def __call__(self, history, targets):
-        if self.blocked or not self.capacity.acquire(blocking=False):
+        return self.run(history, targets)
+
+    def run(self, history, targets, cancel_event=None):
+        if self.blocked or self.closed or not self.capacity.acquire(blocking=False):
             raise RuntimeError('The owned runner is unavailable or still busy.')
+        cancel = cancel_event if cancel_event is not None else threading.Event()
+        if not isinstance(cancel, threading.Event):
+            self.capacity.release()
+            raise ValueError("Use a request-owned cancellation event.")
         try:
-            return self._execute(history, targets)
+            with self.state_lock:
+                if self.closed or self.blocked:
+                    raise RuntimeError('The owned runner is unavailable.')
+                self.active_cancel = cancel
+                self.idle.clear()
+            return self._execute(history, targets, cancel)
         finally:
+            with self.state_lock:
+                if self.active_cancel is cancel:
+                    self.active_cancel = None
+                self.idle.set()
             self.capacity.release()
 
-    def _execute(self, history, targets):
+    def _execute(self, history, targets, cancel):
         payload = json.dumps({'version': 1, 'history': history, 'targets': targets}, allow_nan=False, separators=(',', ':')).encode('utf-8') + b'\n'
         if len(payload) > MAX_INPUT:
             raise ValueError('Model input exceeds the bounded protocol.')
@@ -173,6 +212,8 @@ class WindowsProphetRunner:
         started = time.monotonic()
         self.last_run = {'directory': str(directory), 'pid': None, 'assignedBeforeResume': False, 'stoppedConfirmed': False}
         try:
+            if cancel.is_set():
+                raise ForecastError('CANCELLED')
             security = SecurityAttributes(ctypes.sizeof(SecurityAttributes), None, True)
             child_in, parent_in, parent_out, child_out = (wintypes.HANDLE() for _ in range(4))
             for read, write in ((child_in, parent_in), (parent_out, child_out)):
@@ -212,6 +253,8 @@ class WindowsProphetRunner:
             self.last_run['pid'] = int(info.pid)
             job.assign(process)
             self.last_run['assignedBeforeResume'] = True
+            if cancel.is_set():
+                raise ForecastError('CANCELLED')
             if api.ResumeThread(info.thread) == 0xFFFFFFFF:
                 raise RuntimeError('The assigned worker could not resume.')
             for handle in (child_in.value, child_out.value, null, info.thread):
@@ -236,6 +279,8 @@ class WindowsProphetRunner:
             writer.start()
             handles.remove(input_handle)
             while True:
+                if cancel.is_set():
+                    raise ForecastError('CANCELLED')
                 if time.monotonic() - started >= self.timeout:
                     raise TimeoutError('The owned model computation exceeded its deadline.')
                 if write_failed.is_set():
@@ -265,18 +310,24 @@ class WindowsProphetRunner:
                         continue
                     break
                 time.sleep(0.01)
-            remaining = self.timeout - (time.monotonic() - started)
-            if remaining <= 0 or process.wait(timeout=remaining) != 0:
+            while process.poll() is None or writer.is_alive():
+                if cancel.is_set():
+                    raise ForecastError('CANCELLED')
+                remaining = self.timeout - (time.monotonic() - started)
+                if remaining <= 0:
+                    raise TimeoutError('Owned completion exceeded its deadline.')
+                writer.join(timeout=min(0.02, remaining))
+                if process.poll() is None:
+                    time.sleep(min(0.01, remaining))
+            if cancel.is_set():
+                raise ForecastError('CANCELLED')
+            if process.poll() != 0:
                 raise RuntimeError('Owned worker did not complete successfully.')
-            remaining = self.timeout - (time.monotonic() - started)
-            if remaining <= 0:
-                raise TimeoutError('Owned input delivery exceeded its deadline.')
-            writer.join(timeout=remaining)
-            if writer.is_alive():
-                raise TimeoutError('Owned input delivery exceeded its deadline.')
             if write_failed.is_set():
                 raise RuntimeError('Owned input delivery failed.')
             result = strict_json(bytes(output))
+            if cancel.is_set():
+                raise ForecastError('CANCELLED')
             if time.monotonic() - started >= self.timeout:
                 raise TimeoutError('The owned model result exceeded its deadline.')
             return result
@@ -293,4 +344,4 @@ class WindowsProphetRunner:
                 api.CloseHandle(handle)
             if not confirmed:
                 self.blocked = True
-                raise RuntimeError('Owned worker cleanup is unconfirmed; further requests are blocked.')
+                raise ForecastError('CLEANUP_UNCONFIRMED')

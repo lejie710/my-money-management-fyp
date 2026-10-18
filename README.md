@@ -6,24 +6,24 @@ The ordinary app starts with an **empty device-local wallet**. You can record in
 
 ## What works where
 
-| Capability                  | Current implementation                                                                                            | Requirements and boundaries                                                                                  |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Everyday finances           | Transactions, eight currencies, categories, calendar budgets, one savings goal and reconciled reports             | Device-local records and exact minor-unit amounts; no account or server required                             |
-| Calculators and projections | Illustrative cash-flow score, what-if simulator, loan repayment schedule and six-month recorded-expense forecast  | Calculations run on the device; estimates do not change saved finances                                       |
-| Native tools                | Achievements, reminders, transaction photos, selected contact/place labels, PDF export and transaction-summary QR | Installed project app and relevant permissions; map tiles/address lookup need network/provider availability  |
-| Optional accounts           | Registration, sign-in, profile and local password reset through a Windows Firebase Auth emulator                  | Separate device-local wallets per account; no delivered reset email or cloud financial synchronization       |
-| Receipt recognition         | Windows OCR, editable suggestions and explicit expense confirmation                                               | A paired Windows companion; manual entry remains available                                                   |
-| Financial assistant         | A Windows-hosted local model explains selected calculated report facts                                            | Prepared local model assets and a paired companion; read-only, with no cloud fallback                        |
-| Original service options    | Inactive OpenAI/Vision adapters and a bounded monthly Flask/Prophet foundation; Firebase cloud records/photos planned | **App integration remains unfinished**; adding keys does not enable these features |
+| Capability | Current implementation | Requirements and boundaries |
+| --- | --- | --- |
+| Everyday finances | Transactions, eight currencies, categories, calendar budgets, one savings goal and reconciled reports | Device-local records and exact minor-unit amounts; no account or server required |
+| Calculators and projections | Illustrative cash-flow score, what-if simulator, loan repayment schedule and six-month recorded-expense forecast | Calculations run on the device; estimates do not change saved finances |
+| Native tools | Achievements, reminders, transaction photos, selected contact/place labels, PDF export and transaction-summary QR | Installed project app and relevant permissions; map tiles/address lookup need network/provider availability |
+| Optional accounts and backup | Firebase sign-in, separate account wallets, explicit guest-wallet copying, and manual backup/restore with optional photos | Configure your own Firebase project or the documented local emulators; ordinary edits stay on the device |
+| Receipt recognition | Windows OCR or Google Cloud Vision, followed by editable suggestions and explicit expense confirmation | A paired companion; cloud recognition requires explicit selection and your own host-side key; manual entry remains available |
+| Financial assistant | Local-model or OpenAI explanations of selected calculated report facts | A paired companion and the chosen provider's prerequisites; read-only responses do not change finances |
+| Optional Prophet forecast | Flask/Prophet evaluates completed monthly expense history and returns an alternative projection | Explicit paired Windows service with its own Python environment; the device forecast remains available |
 
-[Original service integrations](docs/ORIGINAL_SERVICE_INTEGRATIONS.md) records the original provider direction, the current local alternatives and the contracts, backend work and verification still required. No original account, API key or paid service is needed for the current local wallet.
+[Original service integrations](docs/ORIGINAL_SERVICE_INTEGRATIONS.md) explains how Firebase, OpenAI, Google Vision and Flask/Prophet fit alongside the local experience. Each option requires deliberate configuration. No original account, API key or paid service is needed for the ordinary wallet. Hosted Firebase and live OpenAI/Vision calls remain unverified; the verification record separates local, emulated and injected-provider checks.
 
 ## Find your way around
 
 - **Activity:** add and review transactions, with an all-date balance distinct from the selected month's activity.
 - **Plan:** manage category budgets and a savings target without moving or reserving money.
 - **Reports:** inspect applied-period balances, export a PDF, simulate changes and explore an eligible expense forecast.
-- **Wallet → Tools → Connections:** discover optional accounts, receipt recognition and the financial assistant. Receipt review and manual entry remain reachable without a companion. Choose a report before opening the assistant, so it uses the report's applied dates.
+- **Wallet → Tools → Connections:** discover optional accounts, cloud backup, receipt recognition, the financial assistant and Prophet setup. Receipt review and manual entry remain reachable without a companion. Choose a report before opening the assistant, so it uses the report's applied dates.
 
 Configured services add useful shortcuts to the relevant screens. A configured connection means its settings are present; availability is checked when the feature is requested. The main header stays focused on the wallet and shows meaningful action or recovery feedback without a permanent readiness message.
 
@@ -55,9 +55,10 @@ For a practical reading path, start with [Architecture](docs/ARCHITECTURE.md). I
 
 Optional services have separate setup guides:
 
-- [Local Auth emulator](tools/auth-emulator/README.md)
-- [Windows OCR and local-model companion](scripts/companion/README.md)
-- [Flask/Prophet service foundation and local checks](tools/forecast/README.md), not yet connected to the app
+- [Firebase account and manual-backup setup](tools/firebase-backup/README.md)
+- [Standalone local Auth emulator](tools/auth-emulator/README.md), when cloud backup is not configured
+- [Windows companion and provider selection](scripts/companion/README.md)
+- [Flask/Prophet service and local verification](tools/forecast/README.md)
 
 ## Source checks
 
@@ -69,7 +70,7 @@ npm.cmd run check
 
 With Python 3.12 or newer available as `python`, run `npm.cmd run test:python` for the two optional-helper Python suites. These checks use synthetic data and injected native/provider effects. They do not replace actual Android rendering, persistence, permissions, PDF/QR output, OCR or model verification. Hosted CI has not been verified for this repository.
 
-The optional Flask/Prophet foundation has separate dependency installation and Python checks in its guide. It is not installed or tested by the default JavaScript gate or `test:python` command.
+The optional Flask/Prophet service and Firebase emulator checks have separate prerequisites and verification commands in their guides. It is not installed or tested by the default JavaScript gate or `test:python` command.
 
 ## Feature guides
 
@@ -84,7 +85,7 @@ The optional Flask/Prophet foundation has separate dependency installation and P
 
 This is an educational development project, not a verified production financial service. The score is illustrative, forecast error describes a bounded historical comparison, and generated explanations can be wrong. See the feature guides for the exact assumptions and [Dependency notes](DEPENDENCY_NOTES.md) for compatibility and audit history.
 
-Keep real records, credentials, connection tokens, emulator exports, model files and generated runtime data out of source control. The current financial stores remain on the device; optional Auth exports do not back up those wallets or photos. The original submission archive and report are not included in this repository.
+Keep real records, credentials, connection tokens, emulator exports, model files and generated runtime data out of source control. Financial records remain on the device until you explicitly confirm a cloud backup. A backup can include selected photo attachments; Auth-emulator exports alone do not back up wallets or photos. Assistant and receipt actions disclose their selected local or cloud provider before sending the chosen facts or image. The original submission archive and report are not included in this repository.
 
 Developed with assistance from AI tools.
 

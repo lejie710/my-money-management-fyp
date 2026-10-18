@@ -63,6 +63,7 @@ export function useAssistant({
   sessionKey,
   initialRange,
   transport,
+  provider,
   isCurrent,
 }: AssistantPanelProps) {
   const scope = useMemo(
@@ -104,7 +105,7 @@ export function useAssistant({
       };
     }
   }, [ledger, scope, effective.startDate, effective.endDate, effective.include]);
-  const key = useMemo(() => ({}), [actorKey, sessionKey, prepared.context, transport]);
+  const key = useMemo(() => ({}), [actorKey, sessionKey, prepared.context, transport, provider]);
   const latestKey = useRef(key);
   latestKey.current = key;
   const latestScope = useRef(scope);
@@ -133,6 +134,7 @@ export function useAssistant({
       sessionKey,
       context,
       transport,
+      expectedProvider: provider,
       isCurrent: (identity) =>
         entry.alive &&
         binding.current === entry &&
@@ -259,7 +261,9 @@ export function useAssistant({
       ...old,
       busy: false,
       message:
-        'Explanation cancelled. The Windows model may still be finishing; no result will be added.',
+        provider?.processing === 'cloud'
+          ? 'Explanation cancelled. OpenAI may already have processed the request; cancellation does not guarantee charges are avoided. No result will be added.'
+          : 'Explanation cancelled. The Windows model may still be finishing; no result will be added.',
     }));
   };
   const clear = () => {

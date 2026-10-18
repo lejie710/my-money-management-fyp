@@ -6,7 +6,9 @@ export type ReminderScope =
   { readonly kind: 'canonical' } | { readonly kind: 'test'; readonly namespace: string };
 
 export type ReminderActor =
-  { readonly kind: 'local' } | { readonly kind: 'firebase'; readonly uid: string };
+  | { readonly kind: 'local' }
+  | { readonly kind: 'firebase'; readonly uid: string }
+  | { readonly kind: 'firebase-hosted'; readonly projectId: string; readonly uid: string };
 
 export type ReminderOwner = {
   readonly scope: ReminderScope;

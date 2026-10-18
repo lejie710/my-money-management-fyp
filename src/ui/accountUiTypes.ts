@@ -7,6 +7,7 @@ export type AccountUiState = {
   /** Changes for a replaced scope/actor/binding, never for an ordinary status-message update. */
   viewToken: string;
   provider: 'configured' | 'unconfigured';
+  cloudAccount?: boolean;
   phase:
     | 'restoring'
     | 'opening-wallet'
@@ -31,6 +32,7 @@ export type AccountUiState = {
   canEditProfile: boolean;
   canSaveLocalProfile: boolean;
   canRequestReset: boolean;
+  canRequestEmailReset?: boolean;
   canRetry: boolean;
   /** Captured calendar date for profile validation; refreshed by the root coordinator. */
   today: string;
@@ -85,5 +87,6 @@ export interface AccountUiController {
   retryProfile(): Promise<AccountResult>;
   retry(): Promise<AccountResult>;
   /** Pure session allocation; request() performs the first intentional reset effect. */
+  requestPasswordReset?(email: string): Promise<AccountResult>;
   createResetSession(): LocalResetController;
 }

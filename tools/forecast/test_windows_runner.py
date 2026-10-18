@@ -198,4 +198,54 @@ class RunnerTests(unittest.TestCase):
                 api.CloseHandle(handle)
 
 
+    def test_explicit_cancel_stops_owned_worker_before_deadline_and_allows_a_fresh_call(self):
+        import threading
+        from monthly_forecast import ForecastError
+        runner = self.make("import sys,time\nsys.stdin.buffer.readline(65537)\ntime.sleep(60)\n", 10)
+        outcomes = []
+        def fit():
+            try: runner([], [])
+            except ForecastError as error: outcomes.append(error.code)
+        task = threading.Thread(target=fit)
+        task.start()
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline and not (runner.last_run and runner.last_run['assignedBeforeResume']):
+            time.sleep(0.01)
+        self.assertTrue(runner.cancel())
+        task.join(3)
+        self.assertFalse(task.is_alive())
+        self.assertEqual(outcomes, ['CANCELLED'])
+        self.assertTrue(runner.last_run['stoppedConfirmed'])
+        self.assertFalse(runner.blocked)
+        self.assertTrue(runner.close())
+        with self.assertRaises(RuntimeError): runner([], [])
+
+    def test_pre_cancelled_request_never_starts_a_worker(self):
+        import threading
+        from monthly_forecast import ForecastError
+        runner = self.make("raise AssertionError('must never execute')\n")
+        cancel = threading.Event(); cancel.set()
+        with self.assertRaises(ForecastError) as error: runner.run([], [], cancel_event=cancel)
+        self.assertEqual(error.exception.code, 'CANCELLED')
+        self.assertIsNone(runner.last_run['pid'])
+        self.assertTrue(runner.last_run['stoppedConfirmed'])
+
+
+    def test_unconfirmed_cleanup_has_explicit_error_and_blocks_another_worker(self):
+        from monthly_forecast import ForecastError
+        boundary = load_boundary()
+        class UnconfirmedJob(boundary.OwnedJob):
+            def stop(self):
+                super().stop()  # Actually stop the synthetic worker; only its report is uncertain.
+                return False
+        runner = self.make("import sys\nsys.stdin.buffer.readline(65537)\nprint('[]')\n")
+        with patch('windows_runner.load_boundary', return_value=SimpleNamespace(OwnedJob=UnconfirmedJob)):
+            with self.assertRaises(ForecastError) as error: runner([], [])
+            self.assertEqual(error.exception.code, 'CLEANUP_UNCONFIRMED')
+        previous = runner.last_run
+        self.assertTrue(runner.blocked)
+        with self.assertRaises(RuntimeError): runner([], [])
+        self.assertIs(runner.last_run, previous)
+
+
 if __name__ == '__main__': unittest.main()

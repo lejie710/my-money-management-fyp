@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "ocr": {
+    "engine": "google-cloud-vision",
+    "apiKey": ""
+  },
+  "assistant": {
+    "engine": "openai",
+    "model": "",
+    "apiKey": ""
+  },
+  "forecast": null
+}

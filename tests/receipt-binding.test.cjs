@@ -27,8 +27,22 @@ function connectionFixture() {
     path.join(__dirname, '../src/ui/useCompanionConnection.ts'),
     {
       react: h.react,
+      '../forecast/client': {
+        createForecastClient() {
+          throw Error('Legacy pairing must not construct a forecast client.');
+        },
+      },
+      '../companion/providerContract': require('../src/companion/providerContract'),
       '../companion/expoConnection': { readPrivateCompanionConnection: read },
-      '../assistant/client':{createAssistantClient(){return{complete:async()=>{throw Error('No request expected during local file read');}};}},
+      '../assistant/client': {
+        createAssistantClient() {
+          return {
+            complete: async () => {
+              throw Error('No request expected during local file read');
+            },
+          };
+        },
+      },
       '../receipts/client': {
         createReceiptClient(configuration) {
           clients.push(configuration);
@@ -363,4 +377,50 @@ test('StrictMode replay closes an active capture once and permits a fresh sessio
   assert.ok(f.render().session);
   f.h.unmount();
   await flush();
+});
+
+test('v2 assistant-only pairing does not construct or expose an OCR client', async () => {
+  const f = connectionFixture();
+  f.render();
+  f.reads[0].resolve({
+    ...f.configuration,
+    version: 2,
+    providers: {
+      ocr: null,
+      assistant: { engine: 'openai', processing: 'cloud', model: 'synthetic-model' },
+      forecast: null,
+    },
+  });
+  await flush();
+  const view = f.render();
+  assert.equal(view.phase, 'configured');
+  assert.equal(view.binding.receipt, null);
+  assert.equal(view.binding.providers.ocr, null);
+  assert.equal(view.binding.providers.assistant.engine, 'openai');
+  assert.equal(typeof view.binding.assistant, 'function');
+  assert.equal(f.clients.length, 0);
+  assert.equal(JSON.stringify(view).includes(f.configuration.token), false);
+  f.h.unmount();
+});
+
+test('v2 OCR-only pairing exposes its cloud destination without constructing an assistant', async () => {
+  const f = connectionFixture();
+  f.render();
+  f.reads[0].resolve({
+    ...f.configuration,
+    version: 2,
+    providers: {
+      ocr: { engine: 'google-cloud-vision', processing: 'cloud', maxImageBytes: 6291456 },
+      assistant: null,
+      forecast: null,
+    },
+  });
+  await flush();
+  const view = f.render();
+  assert.equal(view.phase, 'configured');
+  assert.equal(view.binding.assistant, null);
+  assert.equal(view.binding.providers.ocr.engine, 'google-cloud-vision');
+  assert.equal(view.binding.providers.ocr.maxImageBytes, 6291456);
+  assert.equal(f.clients.length, 1);
+  f.h.unmount();
 });

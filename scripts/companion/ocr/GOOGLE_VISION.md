@@ -1,6 +1,6 @@
 # Optional Google Vision adapter
 
-`googleVisionWorker.cjs` is a server-side provider adapter with offline tests. It is included as an integration foundation; the companion route and mobile receipt workflow do not yet select it. Adding a credential to the existing application configuration does not enable Google Vision. The working Windows OCR option remains unchanged.
+`googleVisionWorker.cjs` is an optional server-side receipt recognition adapter. The companion route, mobile client and reviewed-receipt flow support explicit Google Cloud Vision selection through version 2 private pairing. Windows OCR remains the local option; there is no automatic cloud fallback. See the [companion guide](../README.md) for private configuration and pairing.
 
 ## Interface and credentials
 
@@ -37,20 +37,21 @@ A successful blank result stays empty. Nonempty text without usable word geometr
 From the repository root:
 
 ```powershell
-node --test scripts/companion/tests/google-vision-worker.test.cjs
+node --test scripts/companion/tests/google-vision-worker.test.cjs tests/provider-integration.test.cjs tests/provider-disclosure-ui.test.cjs
 ```
 
-The 18 tests inject provider responses and trap real global fetch. They exercise request minimization, immutable captured image bytes, Unicode/geometry/confidence handling, empty results, malformed data, byte/work limits, deadlines, cancellation, late response cleanup, and the current mobile contract's rejection of the new provider identity. They use the repository's invented receipt fixture. No real credential, listening socket, provider account, or paid request is needed.
+The adapter tests inject provider responses and trap real global fetch. They cover request minimization, immutable image bytes, Unicode/geometry/confidence handling, empty results, malformed data, byte/work limits, deadlines and cancellation. Integration tests run the actual route and mobile client through owned loopback fixture servers, with fake upstream fetches; they verify provider binding, 6 MiB enforcement, truthful provenance and explicit ordinary-expense confirmation. UI checks verify disclosure before recognition and stale-provider rejection. No real credential, provider account or paid request is needed.
 
 These checks do not establish live authentication, OCR accuracy, production throughput, or a completed Android workflow. Official protocol references were consulted on 18 October 2026; live-provider verification has not been performed.
 
-## Remaining integration
+## Companion, review and verification boundary
 
-1. Add explicit server-side provider selection, private credential loading, request authorization, concurrency/usage limits, and owned request cleanup. Preserve Windows OCR without a cloud account.
-2. Deliberately extend [receipt validation and parsing](../../../src/core/receipt.js), declarations, the client, and reviewed-candidate validation. The current contract recognizes Windows OCR and must not accept Google output relabelled as Windows output.
-3. Decide which confidence and polygon evidence belongs in the shared response contract while preserving the client response-size bound and owner/session checks.
-4. Show the selected provider and cloud image-transfer disclosure before recognition. Use accurate provider-specific size limits; the current Windows path permits 10 MiB, while this adapter permits 6 MiB.
-5. Retain manual fallback, editable ambiguous suggestions, optional photo retention, and explicit expense-save confirmation. Recognition alone must never create a transaction.
-6. Add route/client/review integration tests, then separately authorize any live check with synthetic receipts, configured services, and spending limits. Report live results separately from these offline tests.
+The paired descriptor names `google-cloud-vision`, cloud processing and the 6 MiB limit. The binary request carries the exact `x-mymoney-provider` run/provider binding. The service checks it before reading/forwarding the image; the client verifies its `providerBinding` echo and expected OCR provider before accepting words.
 
-The broader service plan is documented in [Original service integrations](../../../docs/ORIGINAL_SERVICE_INTEGRATIONS.md).
+The shared validator preserves Vision's provider, languages, confidence values and original polygons. It checks that each axis-aligned bound agrees with its polygon. Windows results retain the original Windows contract and are not assigned invented confidence. The parser retains the selected provider in its candidate, and unknown providers fail closed. Neither provider receives permission to save financial records.
+
+Before **Recognize with Google Vision**, the panel identifies Google Cloud Vision as the destination, explains that the selected image leaves the device through the Windows companion, and shows the 6 MiB limit and possible provider usage charges. Image selection alone does not upload it. Changing the provider or connection retires the old capture/review session.
+
+Manual fallback, editable ambiguous suggestions, optional local photo retention and explicit category/currency/field confirmation remain required. Confidence is evidence from OCR, not proof that an amount or date is correct. Unknown or non-English recognition language adds a warning because the field parser primarily recognizes English receipt labels. Raw OCR evidence remains transient and is not stored as ledger notes.
+
+Offline tests establish these contracts, not live Google authentication or receipt accuracy. A separately authorized synthetic live check with an owner's configured service is required before claiming live verification. The broader setup and remaining operational checks are documented in [Original service integrations](../../../docs/ORIGINAL_SERVICE_INTEGRATIONS.md).
