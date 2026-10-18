@@ -13,7 +13,7 @@ const storageCore = require('../src/core/storage'),
   runtimeCore = require('../src/ui/ledgerRuntime'),
   fixtures = require('../src/verification/fixtures');
 
-function firstLaunch({ env = {}, data = new Map(), failRead = false } = {}) {
+function firstLaunch({ env = {}, data = new Map(), failRead = false, getClock = clock } = {}) {
   const host = hostWithStores(),
     calls = { reads: [], writes: [] };
   const adapter = {
@@ -27,12 +27,21 @@ function firstLaunch({ env = {}, data = new Map(), failRead = false } = {}) {
       data.set(key, value);
     },
   };
+  // Keep the source's default factory choice under test while giving its real
+  // domain constructor the same clock as achievement reconciliation. A demo
+  // ledger's date argument controls transaction dates, not wallet identity.
+  const clockBoundModel = {
+    ...model,
+    createEmptyLedger(options, context) {
+      return model.createEmptyLedger(options, context ?? { clock: getClock() });
+    },
+  };
   const hook = loadSource(
     path.join(__dirname, '../src/ui/useLedger.ts'),
     {
       react: host.react,
       '@react-native-async-storage/async-storage': adapter,
-      '../core/model': model,
+      '../core/model': clockBoundModel,
       '../core/storage': storageCore,
       '../core/achievements': achievements,
       '../verification/fixtures': fixtures,
@@ -41,7 +50,7 @@ function firstLaunch({ env = {}, data = new Map(), failRead = false } = {}) {
     },
     { process: { env }, console: { info() {} } },
   );
-  const options = { deferInitialRestore: true, getClock: clock };
+  const options = { deferInitialRestore: true, getClock };
   return {
     host,
     calls,
@@ -50,33 +59,44 @@ function firstLaunch({ env = {}, data = new Map(), failRead = false } = {}) {
   };
 }
 
-test('ordinary first launch creates one empty local wallet and restores it unchanged on restart', async () => {
-  const f = firstLaunch();
-  assert.equal(await f.render().restore(), true);
-  const { ledger, status } = f.render();
-  assert.equal(ledger.mode, 'local');
-  assert.equal(ledger.wallet.name, 'My personal wallet');
-  assert.equal(ledger.wallet.currency, 'MYR');
-  assert.equal(ledger.wallet.hasTransactionHistory, false);
-  assert.deepEqual(ledger.transactions, []);
-  assert.deepEqual(ledger.budgets, []);
-  assert.equal(ledger.goal, null);
-  assert.deepEqual(model.totals(ledger), { income: 0, expense: 0, debt: 0, balance: 0 });
-  assert.equal(status, 'Your wallet is ready.');
-  assert.deepEqual(f.calls.writes, [storageCore.STORAGE_KEY]);
-  const saved = f.data.get(storageCore.STORAGE_KEY);
-  f.host.unmount();
-  const restarted = firstLaunch({ data: f.data });
-  assert.equal(await restarted.render().restore(), true);
-  assert.equal(JSON.stringify(restarted.render().ledger), saved);
-  assert.deepEqual(restarted.calls.writes, []);
-  restarted.host.unmount();
+test('ordinary first launch creates one empty local wallet and restores it unchanged across calendar boundaries', async () => {
+  for (const [startDay, restartDay] of [
+    ['2026-10-18', '2026-10-19'],
+    ['2026-10-19', '2026-10-20'],
+    ['2026-12-31', '2027-01-01'],
+  ]) {
+    const clockFor = (today) => () => ({
+      today,
+      nowMs: Date.parse(today + 'T12:00:00+08:00'),
+    });
+    const f = firstLaunch({ getClock: clockFor(startDay) });
+    assert.equal(await f.render().restore(), true);
+    const { ledger, status } = f.render();
+    assert.equal(ledger.mode, 'local');
+    assert.equal(ledger.wallet.trackingStartedOn, startDay);
+    assert.equal(ledger.wallet.name, 'My personal wallet');
+    assert.equal(ledger.wallet.currency, 'MYR');
+    assert.equal(ledger.wallet.hasTransactionHistory, false);
+    assert.deepEqual(ledger.transactions, []);
+    assert.deepEqual(ledger.budgets, []);
+    assert.equal(ledger.goal, null);
+    assert.deepEqual(model.totals(ledger), { income: 0, expense: 0, debt: 0, balance: 0 });
+    assert.equal(status, 'Your wallet is ready.');
+    assert.deepEqual(f.calls.writes, [storageCore.STORAGE_KEY]);
+    const saved = f.data.get(storageCore.STORAGE_KEY);
+    f.host.unmount();
+    const restarted = firstLaunch({ data: f.data, getClock: clockFor(restartDay) });
+    assert.equal(await restarted.render().restore(), true);
+    assert.equal(JSON.stringify(restarted.render().ledger), saved);
+    assert.deepEqual(restarted.calls.writes, []);
+    restarted.host.unmount();
+  }
 });
 
 test('first launch preserves existing local and sample wallets byte for byte', async () => {
   for (const mode of ['local', 'sample']) {
     const existing = achievements.reconcileAchievements(
-      { ...model.createDemoLedger(new Date(2026, 9, 18)), mode },
+      { ...model.createDemoLedger(new Date(2026, 9, 18), { clock: clock() }), mode },
       clock(),
     ).ledger;
     const raw = JSON.stringify(existing, null, 2),
@@ -91,7 +111,10 @@ test('first launch preserves existing local and sample wallets byte for byte', a
 });
 
 test('a retained v4 sample wallet migrates with its records instead of receiving the new empty default', async () => {
-  const previous = { ...model.createDemoLedger(new Date(2026, 9, 18)), version: 4 },
+  const previous = {
+      ...model.createDemoLedger(new Date(2026, 9, 18), { clock: clock() }),
+      version: 4,
+    },
     raw = JSON.stringify(previous, null, 2),
     data = new Map([[storageCore.PREVIOUS_STORAGE_KEY, raw]]),
     f = firstLaunch({ data });
@@ -136,7 +159,7 @@ test('a missing store after confirmed startup blocks recovery without silently r
 });
 
 test('explicit verification scenarios retain their records and remain isolated from the ordinary wallet', async () => {
-  const raw = JSON.stringify(model.createEmptyLedger()),
+  const raw = JSON.stringify(model.createEmptyLedger({}, { clock: clock() })),
     data = new Map([[storageCore.STORAGE_KEY, raw]]),
     f = firstLaunch({
       data,

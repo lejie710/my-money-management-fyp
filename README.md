@@ -1,19 +1,50 @@
 # My Money Management
 
-A React Native money-management project rebuilt from a 2024 final-year project, with an emphasis on clear financial calculations, recoverable local data and readable mobile interfaces. It is intended as an Android educational reference for students studying a complete application.
+My Money Management is a personal finance app I originally developed for my 2024 final-year project. I have since refined its financial calculations, data recovery and mobile interface, with expense tracking, budgeting, reports, receipt recognition and forecasting.
 
 The ordinary app starts with an **empty device-local wallet**. You can record income, expenses and debt payments without signing in or running a separate service. Existing saved wallets and earlier supported data are preserved when reopening or migrating; a change to the first-launch default does not replace them.
 
 ## Screenshots
 
-Android screenshots use fictional records to illustrate the app. A fresh installation starts with an empty wallet.
+Everyday tracking, planning and analysis, followed by optional connected tools. All financial records shown are fictional; a fresh installation starts with an empty wallet.
 
-| Activity                                                                                        | Category budgets                                                                                       |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| ![All-time activity and wallet balance](docs/images/activity.png)                               | ![October category budgets](docs/images/plan.png)                                                      |
-| An all-time overview across 277 records, with income, expenses and debt payments kept distinct. | An October food budget with exact spending and remaining amounts; Shopping is over its separate limit. |
+### Record and plan
 
-See [Reports, wallet settings and the device forecast](docs/UI_DESIGN.md#native-android-gallery) for the other native screens. These captures use one consistent MYR wallet as of 18 October 2026.
+| Activity                                                                                                                           | Transaction details                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <a href="docs/images/activity.png"><img src="docs/images/activity.png" alt="Wallet balance and recorded activity" width="320"></a> | <a href="docs/images/transaction-details.png"><img src="docs/images/transaction-details.png" alt="A transaction with its selected photo and details" width="320"></a> |
+| Review the wallet balance and recorded income, expenses and debt payments.                                                         | Keep a receipt photo and optional details with an ordinary transaction.                                                                                               |
+
+| Category budgets                                                                                                                         | Savings goal                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| <a href="docs/images/plan.png"><img src="docs/images/plan.png" alt="Category budget with spending and remaining amount" width="320"></a> | <a href="docs/images/goal.png"><img src="docs/images/goal.png" alt="Savings goal progress from the recorded wallet balance" width="320"></a> |
+| Compare category spending with its own budget, dates and remaining amount.                                                               | Follow progress toward a savings target using the recorded wallet balance.                                                                   |
+
+### Understand and explore
+
+| Reports                                                                                                                                                         | What-if simulator                                                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| <a href="docs/images/reports.png"><img src="docs/images/reports.png" alt="Recorded expenses and category shares for the applied report period" width="320"></a> | <a href="docs/images/simulator.png"><img src="docs/images/simulator.png" alt="Hypothetical cash-flow scenario and illustrative score" width="320"></a> |
+| The leading four of seven October expense categories. Shares use the full RM2,778.30 expense total.                                                             | Explore how RM500 less in October expenses changes the calculated result, without changing saved records.                                              |
+
+| Loan calculator                                                                                                                    | Expense forecast                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| <a href="docs/images/loan.png"><img src="docs/images/loan.png" alt="Loan payment calculation with applied inputs" width="320"></a> | <a href="docs/images/forecast.png"><img src="docs/images/forecast.png" alt="Local Prophet comparison for completed monthly expense history" width="320"></a> |
+| Calculate fixed-rate payments, interest and repayment totals from explicit inputs.                                                 | Six local Prophet estimates trained on 18 completed expense months through September 2026, shown beside the device method.                                   |
+
+### Capture, explain and preserve
+
+| Receipt review                                                                                                                                                                | Financial assistant                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| <a href="docs/images/receipt.png"><img src="docs/images/receipt.png" alt="Windows OCR receipt review with a manually entered total and recognition warnings" width="320"></a> | <a href="docs/images/assistant.png"><img src="docs/images/assistant.png" alt="Local-model explanation of selected report facts" width="320"></a> |
+| Windows OCR suggested the title, date and currency. No total was auto-filled; RM12.50 was entered manually after checking the receipt.                                        | Ask the local model about selected calculated facts; its answer cannot change finances.                                                          |
+
+| Backup preview                                                                                                                                                            | Exported report                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| <a href="docs/images/cloud-backup.png"><img src="docs/images/cloud-backup.png" alt="Manual Firebase backup preview including the selected receipt photo" width="320"></a> | <a href="docs/images/report-export.png"><img src="docs/images/report-export.png" alt="First page of a two-page PDF report generated by the Android app" width="320"></a> |
+| Preview the wallet and selected receipt photo before a manual backup. This local-emulator preview was cancelled without uploading.                                        | First page of the two-page October report exported by the Android app and rendered locally for readability.                                                              |
+
+The connected tools use Windows OCR, a local Qwen model and local Prophet. The backup preview uses Firebase emulators. The exported report is a rendered PDF page; the other views are native Android captures. Open an image for its full resolution. The [UI guide](docs/UI_DESIGN.md#native-android-gallery) includes Wallet, period balances and the device forecast; [Verification](VERIFICATION.md) records the completed checks and limits.
 
 ## What works where
 
@@ -34,13 +65,13 @@ See [Reports, wallet settings and the device forecast](docs/UI_DESIGN.md#native-
 - **Activity:** add and review transactions, with an all-date balance distinct from the selected month's activity.
 - **Plan:** manage category budgets and a savings target without moving or reserving money.
 - **Reports:** inspect applied-period balances, export a PDF, simulate changes and explore an eligible expense forecast.
-- **Wallet → Tools → Connections:** discover optional accounts, cloud backup, receipt recognition, the financial assistant and Prophet setup. Receipt review and manual entry remain reachable without a companion. Choose a report before opening the assistant, so it uses the report's applied dates.
+- **Wallet > Connections (under Tools):** discover optional accounts, cloud backup, receipt recognition, the financial assistant and Prophet setup. Receipt review and manual entry remain reachable without a companion. Choose a report before opening the assistant, so it uses the report's applied dates.
 
 Configured services add useful shortcuts to the relevant screens. A configured connection means its settings are present; availability is checked when the feature is requested. The main header stays focused on the wallet and shows meaningful action or recovery feedback without a permanent readiness message.
 
 The [UI guide](docs/UI_DESIGN.md) describes the Apple-inspired grouping, platform fonts, readable amounts and keyboard-aware sheets, with additional native screens. [Verification](VERIFICATION.md) records the completed local and optional-service walkthroughs and their limits.
 
-## Run and study the Android app
+## Run the Android app
 
 Start with [Android setup](docs/ANDROID_SETUP.md) for the supported Windows toolchain, Android project generation, native build/install steps and first launch. The development baseline uses Node 24.22.0, JDK 17 and Expo SDK 58; dependencies are pinned in `package-lock.json`.
 
@@ -94,7 +125,7 @@ The optional Flask/Prophet service and Firebase emulator checks have separate pr
 
 ## Scope and data
 
-This is an educational development project, not a verified production financial service. The score is illustrative, forecast error describes a bounded historical comparison, and generated explanations can be wrong. See the feature guides for the exact assumptions and [Dependency notes](DEPENDENCY_NOTES.md) for compatibility and audit history.
+The project has not been verified as a production financial service. The score is illustrative, forecast error describes a bounded historical comparison, and generated explanations can be wrong. See the feature guides for the exact assumptions and [Dependency notes](DEPENDENCY_NOTES.md) for compatibility and audit history.
 
 Keep real records, credentials, connection tokens, emulator exports, model files and generated runtime data out of source control. Financial records remain on the device until you explicitly confirm a cloud backup. A backup can include selected photo attachments; Auth-emulator exports alone do not back up wallets or photos. Assistant and receipt actions disclose their selected local or cloud provider before sending the chosen facts or image. The original submission archive and report are not included in this repository.
 

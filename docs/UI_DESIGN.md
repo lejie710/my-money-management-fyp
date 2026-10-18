@@ -1,6 +1,6 @@
 # Apple-inspired mobile interface
 
-The interface uses light grouped surfaces, platform typography, readable money and consistent controls across Activity, Plan, Reports and Wallet. The current design keeps ordinary local tracking prominent and puts optional service setup under Wallet → Tools → Connections. Android is the current development target; visual styling does not establish iOS behavior.
+The interface uses light grouped surfaces, platform typography, readable money and consistent controls across Activity, Plan, Reports and Wallet. The current design keeps ordinary local tracking prominent and puts optional service setup under Wallet > Connections, in the Tools group. Android is the current development target; visual styling does not establish iOS behavior.
 
 ## First launch and saved data
 
@@ -86,15 +86,36 @@ At that earlier checkpoint, seven native check groups covered empty first launch
 
 ## Native Android gallery
 
-These full-resolution API 35 screenshots were captured from the implemented Android app on 18 October 2026. They retain the native screen and navigation bars; no labels, amounts or pixels were replaced. [The README](../README.md#screenshots) introduces the Activity and budget views and explains the illustration data.
+The [README tour](../README.md#screenshots) groups twelve main workflows into everyday recording and planning, analysis, and optional connected tools. Three supplementary views below show wallet settings, period balances and the device forecast.
 
-| October report                                                                                                                                       | Wallet settings                                                                                                                |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| ![October report with complete period balances](images/reports.png)                                                                                  | ![Everyday wallet settings in MYR](images/wallet.png)                                                                          |
-| Opening balance RM22,276.00; closing balance RM23,677.70. The selected October range contains records through 18 October, with income of RM4,580.00. | The same RM23,677.70 all-date balance, wallet label and MYR currency. Save is disabled because the form has no pending change. |
+The views use fictional records in a 277-transaction MYR wallet. The wallet balance is RM23,677.70; its October report opens at RM22,276.00 and closes at RM23,677.70. A saved cafe receipt and note belong to an ordinary transaction. The display name is Lejie. Read-only walkthroughs compare the account, guest-wallet and managed-photo bytes before and after each view.
 
-The device forecast below uses 18 completed expense months through September 2026 and excludes the partial October month from training. All six future projections are RM2,644.00 for this dataset. This image shows the device calculation; the separately verified optional Prophet result is described in [Verification](../VERIFICATION.md).
+| View                | What it shows                                                                                                                                                                                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Activity            | All-time wallet balance and recorded activity, with income, expenses and debt payments distinguished.                                                                                                                                                                         |
+| Transaction details | The saved receipt photo and note within an ordinary transaction's optional details.                                                                                                                                                                                           |
+| Category budgets    | Food & beverages spending of RM517.80 against an October budget of RM800.00, leaving RM282.20.                                                                                                                                                                                |
+| Savings goal        | Progress derived from the recorded wallet balance, without moving or reserving money.                                                                                                                                                                                         |
+| Reports             | The leading four of seven October expense categories: Bills & utilities RM1,227.60, Food & beverages RM517.80, Shopping RM357.90 and Family RM250.00. Shares use the full RM2,778.30 expense total, including the three categories below this scroll view.                    |
+| What-if simulator   | A hypothetical RM500 reduction in October expenses gives RM1,901.70 net change and RM24,177.70 calculated closing balance. No transaction is saved.                                                                                                                           |
+| Loan calculator     | A RM10,000 loan calculation at 5% nominal annual interest over 36 months, with explicit payment, interest and repayment totals.                                                                                                                                               |
+| Expense forecast    | All six local Prophet estimates from November 2026 through April 2027, using an as-of date of 18 October and 18 completed months through September. Each displayed value matches the actual service response; the RM2,644.00 device comparison is separately labelled.        |
+| Receipt review      | Windows OCR suggested the cafe title, 13 October 2026 and MYR. No total was auto-filled; RM12.50 was entered manually after visually checking the receipt. Recognition warnings remain visible, confirmation stays unchecked, and the review is cancelled without saving.     |
+| Financial assistant | A real local Qwen explanation of October expenses with the three largest expense categories explicitly selected. The displayed amounts, percentages and cited facts were checked against the report. Future answers still require review; the model cannot change the wallet. |
+| Backup preview      | A Firebase-emulator preview of 277 records, three budgets, the savings goal and one selected photo attachment. The preview is cancelled without uploading.                                                                                                                    |
+| Exported report     | The first page of the genuine two-page October PDF generated by the Android app, rendered locally for readability. Both pages were checked against the applied report.                                                                                                        |
 
-![Device forecast of recorded expenses](images/forecast.png)
+The README displays linked images at a fixed 320-pixel width in two columns. Native phone images keep their original 720-by-1560 pixels, system bars and aspect ratio. The report image is a faithful PDF page rendering. Labels, amounts and application pixels are not replaced for presentation; the links open the original full-resolution images.
 
-See [Android setup](ANDROID_SETUP.md) for the build path. Physical-device behavior, iOS and a full screen-reader audit remain unverified.
+### Supplementary views
+
+These three views complement the twelve main README features.
+
+| Wallet settings                                                                                                 | Period balances                                                                                                                                         | Device forecast                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <a href="images/wallet.png"><img src="images/wallet.png" alt="Everyday wallet settings in MYR" width="240"></a> | <a href="images/report-balances.png"><img src="images/report-balances.png" alt="October opening, closing and all-date wallet balances" width="240"></a> | <a href="images/device-forecast.png"><img src="images/device-forecast.png" alt="Six monthly projections from the device forecast" width="240"></a> |
+| Everyday wallet, MYR and its recorded balance.                                                                  | October opens at RM22,276.00 and closes at RM23,677.70; the all-date balance remains separately labelled.                                               | The device method projects RM2,644.00 for each of six future months. This is separate from Prophet output.                                         |
+
+Achievements, reminders, QR sharing and additional transaction tools are covered in their feature guides. The showcase does not imply that every feature appears in one gallery.
+
+See [Android setup](ANDROID_SETUP.md) for the build path and [Verification](../VERIFICATION.md) for workflow evidence and limits. Hosted Firebase, live OpenAI and Google Vision requests, physical-device behavior, iOS and a full screen-reader audit remain unverified.

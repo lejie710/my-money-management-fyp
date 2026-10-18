@@ -4,6 +4,9 @@ import { Action, Choice, FormError, Screen } from './components';
 import { ui } from './theme';
 import { formatMoney } from '../core/model';
 import type { BackupController, CloudPreview } from '../cloud/backupCoordinator';
+
+const quantity = (count: number, noun: string) =>
+  String(count) + ' ' + noun + (count === 1 ? '' : 's');
 function Preview({ value }: { value: CloudPreview }) {
   return (
     <View style={[ui.card, ui.gap]}>
@@ -18,10 +21,10 @@ function Preview({ value }: { value: CloudPreview }) {
         {value.walletName} · {value.currency}
       </Text>
       <Text style={ui.body}>
-        {value.transactions} transactions · {value.budgets} budgets ·{' '}
+        {quantity(value.transactions, 'transaction')} · {quantity(value.budgets, 'budget')} ·{' '}
         {value.hasGoal ? 'Savings goal included' : 'No savings goal'}
       </Text>
-      <Text style={ui.body}>{value.photos} photo attachments</Text>
+      <Text style={ui.body}>{quantity(value.photos, 'photo attachment')}</Text>
       <Text style={[ui.heading, ui.smallGap]}>
         {formatMoney(value.balanceMinor, value.currency)}
       </Text>
@@ -246,7 +249,8 @@ export function CloudBackupScreen({
             <View key={item.backupId} style={[ui.card, ui.gap]}>
               <Text style={ui.heading}>{new Date(item.createdAtMs).toLocaleString()}</Text>
               <Text style={[ui.body, ui.smallGap]}>
-                {item.currency} · {item.transactionCount} transactions · {item.photoCount} photos
+                {item.currency} · {quantity(item.transactionCount, 'transaction')} ·{' '}
+                {quantity(item.photoCount, 'photo')}
               </Text>
               <Action
                 label="Preview restore"
