@@ -14,7 +14,7 @@ The ordinary app starts with an **empty device-local wallet**. You can record in
 | Optional accounts           | Registration, sign-in, profile and local password reset through a Windows Firebase Auth emulator                  | Separate device-local wallets per account; no delivered reset email or cloud financial synchronization       |
 | Receipt recognition         | Windows OCR, editable suggestions and explicit expense confirmation                                               | A paired Windows companion; manual entry remains available                                                   |
 | Financial assistant         | A Windows-hosted local model explains selected calculated report facts                                            | Prepared local model assets and a paired companion; read-only, with no cloud fallback                        |
-| Original service options    | Hosted Firebase, Firestore/Storage, OpenAI, Google Cloud Vision and Flask/Prophet                                 | **Planned implementation work**, not features that become available by adding keys or changing configuration |
+| Original service options    | Inactive server adapters for OpenAI and Google Vision; Firebase cloud records/photos and Flask/Prophet integration planned | **App integration remains unfinished**; adding keys does not enable these features |
 
 [Original service integrations](docs/ORIGINAL_SERVICE_INTEGRATIONS.md) records the original provider direction, the current local alternatives and the contracts, backend work and verification still required. No original account, API key or paid service is needed for the current local wallet.
 

@@ -4,6 +4,8 @@ The original FYP explored Firebase accounts and cloud records, OpenAI explanatio
 
 This document separates existing implementation from planned work. It is an integration plan, not a set of credentials that enables finished cloud features. The original submission, old service configuration, and unused assets are not part of the public application. No access to an original account or project is needed to study or run the local version.
 
+The repository now includes independently reviewed, offline-tested server adapters for [OpenAI](../scripts/companion/assistant/OPENAI.md) and [Google Vision](../scripts/companion/ocr/GOOGLE_VISION.md). They are not imported by the running companion, advertised by pairing, or accepted by the current mobile response validators. Their presence preserves useful provider integration code; it does not make the app configuration-ready for either provider.
+
 ## Current capability and original direction
 
 | Area | Original submission approach | Implemented in this repository | Work required for the original service option |
@@ -11,8 +13,8 @@ This document separates existing implementation from planned work. It is an inte
 | Accounts | Firebase email/password registration, sign-in, profile updates, and password-reset email | Optional Firebase Auth emulator, guarded session restoration, local profiles, separate account/guest wallets, and a local reset inbox | A separately configured hosted Auth adapter, provider-specific session isolation, real reset-email handling, and an explicit setup/verification guide |
 | Financial records | Firestore collections for users, wallets, transactions, categories, budgets, loans, achievements, and alerts | Validated device-local ledger with exact minor-unit amounts, migrations, and owner-scoped storage | Firestore schema, access rules, synchronization semantics, conflict/retry handling, migration tooling, and emulator tests |
 | Photos | Firebase Storage uploads with download URLs saved in transaction records | Validated app-owned local attachments and conservative cleanup | Owner-scoped cloud object paths and rules, opt-in upload/download, durable references, and recovery for partial uploads and deletions |
-| Explanations | Direct mobile requests to OpenAI Chat Completions with financial context | Read-only local model through the Windows companion, using explicitly selected calculated facts | A server-side OpenAI adapter, hosted-request authorization, provider selection, bounded cost/request handling, and separate evaluation |
-| Receipt recognition | Direct mobile requests to Google Cloud Vision text detection | Windows OCR through the companion, followed by editable suggestions and explicit expense confirmation | A server-side Vision adapter that normalizes text/geometry into the existing receipt contract, with cloud-processing disclosure and separate evaluation |
+| Explanations | Direct mobile requests to OpenAI Chat Completions with financial context | Read-only local model through the Windows companion; inactive OpenAI adapter with selected-facts validation and bounded transport | Companion configuration/routes, provider-aware pairing and mobile response contracts, destination disclosure, usage controls, and separate evaluation |
+| Receipt recognition | Direct mobile requests to Google Cloud Vision text detection | Windows OCR through the companion; inactive Vision adapter with bounded transport and normalized text/geometry | Provider-aware companion/mobile contracts, image-limit messaging, cloud-processing disclosure, and separate evaluation |
 | Forecasting | Flask endpoint fitting Prophet to submitted values | Six-month device calculation comparing three transparent methods against earlier months | An optional Flask/Prophet service with explicit monthly semantics, validated inputs/outputs, evaluation against the existing baselines, and separate UI provider/result state |
 
 The original Firebase Functions directory contained a starter scaffold rather than an implemented proxy for these services. Archived screen code establishes the intended integrations, not a tested backend or a deployment-ready security model. The restored account, receipt, assistant, and forecast guides describe the currently working paths:
@@ -30,6 +32,8 @@ The ordinary wallet, transaction editor, budgets, reports, simulator, loan calcu
 The current flags `EXPO_PUBLIC_LOCAL_AUTH_EMULATOR=1` and `EXPO_PUBLIC_LOCAL_COMPANION=1` enable their documented local development paths. They do not select hosted Firebase, OpenAI, or Vision. Adding Firebase-style environment variables to the current application will not implement cloud synchronization. Changing the companion URL will not work: its connection and transport validators deliberately accept only the paired local endpoint, and assistant responses identify the expected local provider.
 
 Future configuration should select an explicit capability and provider, validate all required settings before activation, and otherwise leave that capability unavailable with a useful explanation. Do not automatically switch from a failed local service to a paid provider. Do not put a configuration form for private provider keys inside the mobile application.
+
+OpenAI and Vision can reuse the paired Windows companion as their gateway. Android would keep its existing private local connection, and only the Windows process would contact the selected provider. This path does not require cloud ledger storage or a new public backend deployment. It still requires explicit provider metadata, per-run authorization, mobile validation changes and a visible destination before each request.
 
 | Proposed configuration boundary | Values it may contain | Values it must not contain |
 | --- | --- | --- |
@@ -61,7 +65,7 @@ Preserve the original OpenAI option through a server-side adapter. The archived 
 
 Required implementation work:
 
-1. Create an application-owned authenticated backend route that calls OpenAI with a server-held credential. Validate the application session and request size before contacting the provider. A configurable model must come from a reviewed backend allowlist; the archived model name is not a current compatibility guarantee.
+1. Connect the implemented server adapter to an explicitly configured, authenticated companion route. Keep the credential in the Windows process, validate the private application session and request size before dispatch, and advertise only non-secret provider/model metadata. A configurable model must be deliberately selected and support the adapter's structured-output contract; the archived model name is not a current compatibility guarantee.
 2. Reuse the selected-facts request contract while making provider identity explicit. Adapt the [assistant protocol](../src/assistant/protocol.js) and [client](../src/assistant/client.js) through deliberate versioned contracts; do not bypass their local-provider checks or impersonate the local model in a cloud response.
 3. Show which selected facts and question will leave the device, then send only after Ask. Exclude unselected transactions, receipt images, raw OCR, person/place details, and account profile information. Generated text remains separate from calculated amounts and cannot write the ledger.
 4. Bound input/output, response time, concurrency, and per-user usage. Preserve request IDs and cancellation/stale-response protection. A network timeout or UI cancellation does not prove that a provider stopped computation or avoided charging; do not retry automatically on that assumption.
@@ -75,7 +79,7 @@ Keep the existing image-selection and review flow. The Vision option should repl
 
 Required implementation work:
 
-1. Accept a bounded supported image only after an explicit recognition request and hosted-processing disclosure. Authenticate the caller and keep the Vision credential on the backend. Do not place a provider key in a mobile URL or public environment variable.
+1. Connect the implemented server adapter to the authenticated companion route, accepting a supported image only after an explicit recognition request and cloud-processing disclosure. Keep the credential in the Windows process. The adapter's 6 MiB raw-image limit must also be enforced and explained in the mobile flow; the existing local provider permits a different limit. Do not place a provider key in a mobile URL or public environment variable.
 2. Normalize Vision words, lines, bounding geometry, image dimensions, and language information into the shape validated by [the receipt module](../src/core/receipt.js). Add an explicit provider identifier through a reviewed contract change where required. Missing, partial, or unsupported OCR geometry must be handled rather than fabricated.
 3. Retain alternatives for ambiguous totals, dates, and currencies. The user selects a category, checks the suggestions, and confirms an ordinary expense. Recognition and optional photo retention remain distinct decisions.
 4. Bound temporary image retention, decode/processing sizes, request time, concurrency, and usage. Define cleanup after success, failure, cancellation, and uncertain shutdown. Do not copy the archived raw-image, receipt-field, upload-URL, or provider-error logging.
