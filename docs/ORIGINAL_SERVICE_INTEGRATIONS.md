@@ -6,16 +6,18 @@ This document separates existing implementation from planned work. It is an inte
 
 The repository now includes independently reviewed, offline-tested server adapters for [OpenAI](../scripts/companion/assistant/OPENAI.md) and [Google Vision](../scripts/companion/ocr/GOOGLE_VISION.md). They are not imported by the running companion, advertised by pairing, or accepted by the current mobile response validators. Their presence preserves useful provider integration code; it does not make the app configuration-ready for either provider.
 
+The [Flask/Prophet foundation](../tools/forecast/README.md) also preserves the original forecasting stack, with corrected monthly semantics, strict request/output validation and an owned Windows worker. Its local checks include actual synthetic model fits. It is not connected to the forecast panel and starts no listening service on import.
+
 ## Current capability and original direction
 
 | Area | Original submission approach | Implemented in this repository | Work required for the original service option |
 | --- | --- | --- | --- |
 | Accounts | Firebase email/password registration, sign-in, profile updates, and password-reset email | Optional Firebase Auth emulator, guarded session restoration, local profiles, separate account/guest wallets, and a local reset inbox | A separately configured hosted Auth adapter, provider-specific session isolation, real reset-email handling, and an explicit setup/verification guide |
-| Financial records | Firestore collections for users, wallets, transactions, categories, budgets, loans, achievements, and alerts | Validated device-local ledger with exact minor-unit amounts, migrations, and owner-scoped storage | Firestore schema, access rules, synchronization semantics, conflict/retry handling, migration tooling, and emulator tests |
+| Financial records | Firestore collections for users, wallets, transactions, categories, budgets, loans, achievements, and alerts | Validated device-local ledger with exact minor-unit amounts, migrations, and owner-scoped storage | Select the cloud-data workflow, then implement its schema, access rules, recovery/import semantics and emulator tests |
 | Photos | Firebase Storage uploads with download URLs saved in transaction records | Validated app-owned local attachments and conservative cleanup | Owner-scoped cloud object paths and rules, opt-in upload/download, durable references, and recovery for partial uploads and deletions |
 | Explanations | Direct mobile requests to OpenAI Chat Completions with financial context | Read-only local model through the Windows companion; inactive OpenAI adapter with selected-facts validation and bounded transport | Companion configuration/routes, provider-aware pairing and mobile response contracts, destination disclosure, usage controls, and separate evaluation |
 | Receipt recognition | Direct mobile requests to Google Cloud Vision text detection | Windows OCR through the companion; inactive Vision adapter with bounded transport and normalized text/geometry | Provider-aware companion/mobile contracts, image-limit messaging, cloud-processing disclosure, and separate evaluation |
-| Forecasting | Flask endpoint fitting Prophet to submitted values | Six-month device calculation comparing three transparent methods against earlier months | An optional Flask/Prophet service with explicit monthly semantics, validated inputs/outputs, evaluation against the existing baselines, and separate UI provider/result state |
+| Forecasting | Flask endpoint fitting Prophet to submitted values | Six-month device calculation plus an inactive, locally tested Flask/Prophet service foundation | Companion/service launch and transport, provider-aware mobile state, common-fold comparison display, cancellation and owner/session checks |
 
 The original Firebase Functions directory contained a starter scaffold rather than an implemented proxy for these services. Archived screen code establishes the intended integrations, not a tested backend or a deployment-ready security model. The restored account, receipt, assistant, and forecast guides describe the currently working paths:
 
@@ -46,6 +48,8 @@ These are proposed boundaries, not additional environment variables supported by
 ## Firebase Auth, Firestore, and Storage
 
 The existing account coordinator already pauses financial operations during identity changes and restores each confirmed owner separately. Preserve that behavior when adding hosted Auth. The current [Firebase adapter](../src/accounts/firebaseAdapter.js) is intentionally tied to the local emulator and should remain an independently testable option.
+
+The cloud-data workflow is still undecided: explicit backup/restore and automatic cross-device synchronization require different interfaces and conflict semantics. No automatic synchronization is implemented. Provider/project-aware identity is a prerequisite for either choice and is not yet integrated into the active application. The work below is a design boundary, not a decision to enable automatic uploads.
 
 Required implementation work:
 
@@ -90,28 +94,30 @@ Use invented receipt images for empty results, multiple totals, ambiguous dates,
 
 Preserve Prophet as an optional forecasting method alongside the existing device calculation. The archived service fitted submitted values and requested 180 future daily periods, while the mobile screen supplied monthly totals and rendered month labels. It also returned history with predictions. That combination must be corrected before calling the result a six-month forecast.
 
-Required implementation work:
+The included foundation corrects the monthly calculation and supplies a bounded worker; application integration remains separate:
 
-1. Define one versioned request with currency, selected expense category, as-of date, completed-month series, and requested forecast months. Validate ordering, duplicates, missing calendar months, finite nonnegative values, input size, and sufficient history. Exclude income, debt payments, the partial month, and future records consistently with the current feature.
-2. Pin compatible Python, Flask, pandas, and Prophet dependencies in a reproducible optional service. Start with a loopback development service; disable Flask's debug server behavior in any shared deployment. Add explicit authentication, allowed origins where relevant, request limits, and fixed diagnostic messages before exposing an endpoint.
-3. Fit monthly data at explicit monthly intervals and return only the requested future month rows. Keep history and the excluded partial month separate. The current device feature skips the partial as-of month, so its six displayed projections have leads two through seven from the last completed training month; any comparison must use those same target months.
-4. Convert between integer minor units and model input deliberately. Preserve whole-yen behavior, reject nonfinite responses, and document rounding and treatment of negative predictions. Do not silently clamp forecasts or relabel prediction intervals as guaranteed spending ranges.
-5. Show Prophet as a distinct method with its own parameters and evaluation. Compare it with the existing last-value, trailing-mean, and damped-trend baselines on the same historical targets, without training on target-period data. Report the evaluated horizon and dates. Historical error does not establish future accuracy.
+1. The versioned request validates currency, as-of date, consecutive completed months, nonnegative integer minor units, history eligibility and six explicit target months. The mobile integration must derive this series from the selected expense category, exclude income/debt/partial/future records, bind the response to that selection and explain the provider's 120-month limit.
+2. Compatible Windows/Python 3.12 dependencies are pinned by version and wheel hash. The Windows worker starts suspended, joins an owned Job before execution and enforces input/output bounds plus a computation deadline. The Flask factory supplies authentication and request limits but starts no listener. Add an owned loopback service lifecycle and authenticated companion transport before exposing an application endpoint.
+3. The model predicts only the six requested month-start rows. They have leads two through seven from the final training month, skipping the partial as-of month. Preserve that alignment in the mobile result and any comparison display.
+4. The adapter fits approximate model values in minor-unit scale and rounds finite bounded results half away from zero. Whole-yen behavior is covered. Negative estimates are preserved with an explicit flag and no prediction intervals are returned. The UI must explain those states, preserve exact stored amounts and never silently clamp or save an estimate as a record.
+5. Show Prophet as a distinct method with its explicit settings and evaluation. The synthetic evaluation uses the same historical targets and eligible prefixes as the existing last-value, trailing-mean and damped-trend baselines, without target-period training. Integrate a common-fold comparison and report its dates/horizon; historical error does not establish future accuracy.
 
-Tests should cover month-end/year-boundary handling, zero months, insufficient history, duplicate dates, gaps, future-data leakage, six correctly aligned outputs, interval ordering when available, currency rounding, timeout, malformed responses, and no changes to saved records. Run an actual pinned Prophet fit on synthetic data before marking the option implemented. A stubbed response or installation success does not satisfy that gate.
+The source tests cover calendar boundaries, zero/insufficient/padded history, duplicate dates, gaps, incorrect targets, currency rounding, malformed results, authentication and process/deadline behavior. Actual pinned synthetic fits have also passed through the owned worker and Flask test client. Cancellation, owner changes, restart, response binding and unchanged saved records still need integrated Android/service checks; local model evidence does not establish a finished app option.
 
 ## Delivery sequence and completion evidence
 
 | Stage | Deliverable | Evidence needed before calling it complete |
 | --- | --- | --- |
 | 1. Contracts and configuration | Explicit provider modes, disabled defaults, owner/project identity, request/response schemas, and placeholder-only setup examples | Configuration rejection tests; ordinary local workflows still run with no provider credentials |
-| 2. Firebase accounts and records | Hosted Auth adapter, Firestore rules/schema/synchronization, optional Storage ownership | Emulator isolation and recovery tests; documented migration boundaries; separately authorized hosted checks if hosted support is claimed |
+| 2. Firebase accounts and records | Hosted Auth adapter, chosen cloud-data workflow, Firestore schema/rules and optional Storage ownership | Emulator isolation and recovery tests; documented import/restore or synchronization boundaries; separately authorized hosted checks if hosted support is claimed |
 | 3. Provider gateway | Authenticated application backend with server-only credentials and bounded requests | Rejected unauthenticated requests, request minimization, redacted failures, limits, and no secret values in the mobile bundle or repository |
-| 4. OpenAI and Vision adapters | Independently selectable explanation and OCR providers using the restored review/session safeguards | Contract tests plus separately authorized synthetic live evaluations; actual provider and model/version recorded |
+| 4. OpenAI and Vision adapters | Independently selectable explanation and OCR providers using the restored review/session safeguards | Contract and local transport/session tests; separately authorized live evaluations record actual provider/model and remain a distinct verification status |
 | 5. Prophet service | Optional monthly forecasting endpoint and clearly labelled result comparison | Reproducible installation, actual fit, calendar/rounding tests, matched historical evaluation, and unchanged ledger |
 | 6. Android integration | Documented setup and actual device/emulator workflows for the enabled options | Successful request, unavailable service, cancellation, owner change, restart, and privacy checks for each enabled provider |
 
 Source implementation, deployment, live-provider verification, and public publication are separate steps. This plan creates no cloud project, enables no billing, uses no original credentials, and makes no paid request. Anyone enabling a hosted option must supply their own deliberately configured services and approve its data transfer and spending limits. iOS remains deferred; Android evidence must not be presented as iOS verification.
+
+A configuration-ready implementation can be delivered with local/emulated/injected integration evidence while live authentication, provider compatibility and answer/OCR quality remain explicitly unverified. Missing live-service authorization must not be hidden, and a mock response must not be presented as a successful external request.
 
 ## Worked scope check
 

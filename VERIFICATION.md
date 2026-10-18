@@ -1,5 +1,17 @@
 # Verification record
 
+## Monthly Prophet foundation checkpoint: 18 October 2026
+
+The optional [Flask/Prophet source](tools/forecast/README.md) passed **33 Python tests**: 20 monthly-contract/Flask checks, nine Windows worker checks and four evaluation-contract checks. The worker tests exercised actual child processes, including unread stdin, oversized output, timeout with a descendant, output/input completion races and parent-crash cleanup. The crash check retained verified exact process handles and confirmed that children stopped when the non-inherited Job handle closed. Independent relocation review preserved all 81 original test assertion calls and checked the repository-local runtime boundary.
+
+Two real calls through the relocated source also passed: direct owned-model execution and the Flask in-process test client using that worker. Both matched the earlier synthetic reference, preserved their input and confirmed stopped owned processes; their combined duration was 9.531 seconds on the test host. This used the existing isolated Python 3.12 environment with the locked Prophet 1.5.0/Flask 3.1.3 dependencies. It started no listening HTTP service and exercised no Android provider path.
+
+The earlier controlled model evaluation covered increasing monthly expenses, constant expenses and whole-yen inputs, followed by an identical repeated result. A nine-fold two-month-ahead comparison restricted all four methods to the same target dates and training prefixes. Prophet's observed MAE on that invented increasing series was 34.44 minor units, compared with 2,000 for last value, 3,000 for trailing mean and 560 for damped trend. These figures establish that particular synthetic comparison, not a general prediction-quality advantage. No real financial records, cloud credentials or paid services were used.
+
+The repository's reproducible `tools/forecast/verify_fit.py` command subsequently passed on the frozen source. It performed all 13 fits through the owned worker: three scenarios, a repeated Flask result and nine common historical folds. The observed results matched the earlier comparison, all owned processes stopped, and input/source hashes stayed unchanged. It completed in 62.454 seconds on the test host. Its output stays under ignored `.runtime/forecast-evaluation`; the guide gives the command and its Windows/Python/Node prerequisites.
+
+Service launch/pairing, user cancellation through transport, provider selection, mobile session binding, result presentation and an Android walkthrough remain unfinished. The ordinary app continues using its device forecast. The current workflow does not run these optional dependency-heavy checks in hosted CI.
+
 ## Optional provider adapter checkpoint: 18 October 2026
 
 The source includes inactive server adapters for OpenAI explanations and Google Vision receipt recognition. The full `npm.cmd run check` gate passed **890 JavaScript tests**, followed by TypeScript, with no failures, skips or cancellations. This adds 22 OpenAI and 18 Vision offline tests to the 850-test local-app checkpoint below. The tests inject provider responses and reject accidental real fetch calls. No cloud account, actual provider credential or live API request was used.
@@ -8,7 +20,7 @@ Independent review checked the fixed HTTPS destinations, explicit server-only cr
 
 These modules are not imported by the running companion, selected by pairing, or enabled in the mobile client. Existing local model/OCR behavior, UI, native configuration and data storage are unchanged by this adapter checkpoint. No new Android walkthrough is claimed for cloud features. Configuration, route/client/session contracts, destination disclosure and live provider evaluation remain unfinished; see [OpenAI](scripts/companion/assistant/OPENAI.md), [Google Vision](scripts/companion/ocr/GOOGLE_VISION.md) and the [integration plan](docs/ORIGINAL_SERVICE_INTEGRATIONS.md).
 
-## Current source checkpoint: 18 October 2026
+## Local-app and Android checkpoint: 18 October 2026
 
 The current ordinary app starts with an empty device-local wallet. Optional account, receipt and assistant setup is discoverable under Wallet → Tools → Connections; configured services can add shortcuts without claiming that the service is reachable. Existing saved wallets, including earlier sample wallets, remain authoritative. Final gallery preparation waits for the required original-service integrations.
 

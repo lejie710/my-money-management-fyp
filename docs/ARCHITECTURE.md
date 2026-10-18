@@ -59,7 +59,7 @@ Core calculations and ledger persistence do not call OCR or a language model. Re
 
 The optional Auth emulator authenticates development accounts; it does not synchronize financial records. Windows OCR and the local explanation model run through a separately paired companion. Their runtime credentials and temporary files are outside the tracked source. The connection validators deliberately restrict the current transport to that local setup.
 
-Hosted Firebase records/photos, OpenAI, Google Vision, and Flask/Prophet are optional provider integration work, not completed features enabled by inserting keys. The OpenAI and Vision server adapters have offline tests but are not connected to the running companion or mobile client. [Original service integrations](ORIGINAL_SERVICE_INTEGRATIONS.md) describes their remaining routes/contracts, Firebase ownership/access work, and verification. The existing device forecast is a separate implementation, explained in [Monthly forecast](MONTHLY_FORECAST.md).
+Hosted Firebase records/photos, OpenAI, Google Vision, and Flask/Prophet are optional provider integration work, not completed features enabled by inserting keys. The OpenAI and Vision adapters have offline provider tests. The [Flask/Prophet foundation](../tools/forecast/README.md) has monthly validation, a bounded Windows model worker and local synthetic fit checks. None is connected to the running companion or mobile client. [Original service integrations](ORIGINAL_SERVICE_INTEGRATIONS.md) describes their remaining routes/contracts, Firebase ownership/access work, and verification. The existing device forecast is a separate implementation, explained in [Monthly forecast](MONTHLY_FORECAST.md).
 
 ## Tests and a reading exercise
 

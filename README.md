@@ -14,7 +14,7 @@ The ordinary app starts with an **empty device-local wallet**. You can record in
 | Optional accounts           | Registration, sign-in, profile and local password reset through a Windows Firebase Auth emulator                  | Separate device-local wallets per account; no delivered reset email or cloud financial synchronization       |
 | Receipt recognition         | Windows OCR, editable suggestions and explicit expense confirmation                                               | A paired Windows companion; manual entry remains available                                                   |
 | Financial assistant         | A Windows-hosted local model explains selected calculated report facts                                            | Prepared local model assets and a paired companion; read-only, with no cloud fallback                        |
-| Original service options    | Inactive server adapters for OpenAI and Google Vision; Firebase cloud records/photos and Flask/Prophet integration planned | **App integration remains unfinished**; adding keys does not enable these features |
+| Original service options    | Inactive OpenAI/Vision adapters and a bounded monthly Flask/Prophet foundation; Firebase cloud records/photos planned | **App integration remains unfinished**; adding keys does not enable these features |
 
 [Original service integrations](docs/ORIGINAL_SERVICE_INTEGRATIONS.md) records the original provider direction, the current local alternatives and the contracts, backend work and verification still required. No original account, API key or paid service is needed for the current local wallet.
 
@@ -57,6 +57,7 @@ Optional services have separate setup guides:
 
 - [Local Auth emulator](tools/auth-emulator/README.md)
 - [Windows OCR and local-model companion](scripts/companion/README.md)
+- [Flask/Prophet service foundation and local checks](tools/forecast/README.md), not yet connected to the app
 
 ## Source checks
 
@@ -67,6 +68,8 @@ npm.cmd run check
 ```
 
 With Python 3.12 or newer available as `python`, run `npm.cmd run test:python` for the two optional-helper Python suites. These checks use synthetic data and injected native/provider effects. They do not replace actual Android rendering, persistence, permissions, PDF/QR output, OCR or model verification. Hosted CI has not been verified for this repository.
+
+The optional Flask/Prophet foundation has separate dependency installation and Python checks in its guide. It is not installed or tested by the default JavaScript gate or `test:python` command.
 
 ## Feature guides
 
