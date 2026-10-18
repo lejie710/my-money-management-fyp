@@ -1,14 +1,14 @@
 # Review a receipt before saving an expense
 
-Activity → Review receipt turns a selected image into editable suggestions. Recognition runs in the Windows companion through the Windows OCR engine. The phone previews and reviews the result; it does not run an on-device OCR model, call cloud OCR or automatically create a transaction. Setup beside the receipt row expands the full connection message and Recheck; Hide collapses those details.
+Wallet > Tools > Connections > Review receipt turns a selected image into editable suggestions. Recognition uses the explicitly configured Windows OCR or Google Cloud Vision provider through the Windows companion. The phone previews and reviews the result; it does not run an on-device OCR model or automatically create a transaction. The selected provider and data destination appear before the recognition action.
 
 The final result is an ordinary expense in the existing wallet currency and selected expense category. Reports, budgets and achievements use the same transaction model as manual entry. Receipt capture adds no new financial schema, conversion rate, special receipt-origin field or automatically generated notes.
 
 ## The review flow
 
-1. Open Review receipt from Activity. Choose one image, or choose Take receipt photo when the installed build and camera permission support it. Cancelling selection leaves the current draft unchanged.
+1. Open Review receipt from Connections, or its shortcut when receipt recognition is configured. Choose one image, or choose Take receipt photo when the installed build and camera permission support it. Cancelling selection leaves the current draft unchanged.
 2. Inspect the preview, expanding it if needed. A failed preview prevents recognition/confirmation until a usable image is selected.
-3. Choose Recognize receipt. Only this explicit action sends the selected image bytes to the local Windows companion. A configured connection alone does not establish that the service is reachable.
+3. Read the provider disclosure, then choose Recognize receipt for Windows OCR or Recognize with Google Vision for cloud OCR. Only this explicit action sends the selected image. Windows OCR stays on the computer; Vision forwards the image to Google. A configured connection alone does not establish that the service is reachable.
 4. Check the suggested title, receipt date, amount and currency against the image. Choose an expense category; the app does not infer one. Ambiguous dates and labelled totals are offered as alternatives rather than silently selected.
 5. Optionally select Keep the receipt photo. It starts off. Review the fields and select the explicit acknowledgement, then choose Confirm and save expense.
 
@@ -18,7 +18,7 @@ Editing any reviewed field or changing photo retention clears the acknowledgemen
 flowchart LR
     A[Explicit image selection] --> B[Validated local preview]
     B --> C[Explicit Recognize]
-    C --> D[Windows OCR words and geometry]
+    C --> D[Selected OCR provider words and geometry]
     D --> E[Editable suggestions and warnings]
     E --> F[Choose category and check fields]
     F --> G[Explicit Confirm]
@@ -39,13 +39,13 @@ Recognize again deliberately replaces a successful review with a new result. If 
 
 ## Image ownership and cancellation
 
-The native adapter checks actual JPEG, PNG or WebP bytes and dimensions before accepting a preview. Images are limited to 10 MiB, 16,384 pixels per side and 40 million pixels overall. Unsupported, malformed or oversized results are rejected. The app copies an accepted selection into a temporary owned receipt area; it does not delete gallery originals or save a camera result to the camera roll.
+The native adapter checks actual JPEG, PNG or WebP bytes and dimensions before accepting a preview. Local image selection is limited to 10 MiB, 16,384 pixels per side and 40 million pixels overall. Google Cloud Vision requests have a narrower 6 MiB limit, checked before upload; Windows OCR retains the 10 MiB limit. Unsupported, malformed or oversized results are rejected. The app copies an accepted selection into a temporary owned receipt area; it does not delete gallery originals or save a camera result to the camera roll.
 
 Keep photo creates a separate permanent attachment only during a validated confirmation. If it is off, the saved expense has no receipt photo. Raw OCR rows are temporary review data and are not added to notes or the ledger. This is not an image-metadata removal feature: the selected file bytes may still contain embedded image metadata.
 
-Closing a review, changing account/wallet ownership, replacing the companion connection or losing the active storage state invalidates its asynchronous callbacks. An old response cannot enter a new account's review. Temporary image release waits for any permanent-photo copy to drain. Uncertain cleanup retains the exact owned files and exposes Retry receipt image cleanup; it does not sweep unrelated cache files.
+Closing a review, changing account/wallet ownership, replacing the companion connection/provider or losing the active storage state invalidates its asynchronous callbacks. An old response cannot enter a new account's review. Temporary image release waits for any permanent-photo copy to drain. Uncertain cleanup retains the exact owned files and exposes Retry receipt image cleanup; it does not sweep unrelated cache files.
 
-The host similarly uses an owned temporary OCR job. Successful confirmed process closure permits cleanup. If termination is unconfirmed, the job is retained and new OCR is blocked until the owned helper is inspected/recovered. No result is invented while waiting. Manual financial entry remains available when the companion is missing or unavailable.
+The Windows OCR host uses an owned temporary OCR job. Successful confirmed process closure permits cleanup. If termination is unconfirmed, the job is retained and new OCR is blocked until the owned helper is inspected/recovered. No result is invented while waiting. Manual financial entry remains available when the companion is missing or unavailable.
 
 ## Camera capability
 
@@ -73,9 +73,19 @@ $env:EXPO_PUBLIC_RECEIPT_CAMERA_ENABLED = '1'
 npm.cmd run android -- --project-app
 ```
 
-The local companion connection additionally requires a development runtime. Restart Metro after changing these flags, then open Activity → Setup beside Review receipt and choose Recheck after pairing. Its accessible name is Recheck connection. The app reads only its known private connection file, validates the exact loopback URL and schema, and sends no recognition request merely because that file exists. Restarting or repairing the helper needs a new verified pairing/recheck; the app never substitutes a remote endpoint.
+The local companion connection additionally requires a development runtime. Restart Metro after changing these flags, then open Wallet > Tools > Connections, choose Setup beside Review receipt, and choose Recheck after pairing. Its accessible name is Recheck connection. The app reads only its known private connection file, validates the exact loopback URL and schema, and sends no recognition request merely because that file exists. Restarting or repairing the helper needs a new verified pairing/recheck; the app never substitutes a remote endpoint.
 
 Clear that run's matching device pairing before requesting its owned stop, following the companion guide. Do not remove another run's forwarding or stop a process by a broad name. A confirmed post-stop summary can support explicit cleanup of that same stale pairing; uncertain evidence remains available for inspection.
+
+## Optional Google Cloud Vision
+
+Select Vision explicitly in the companion's private configuration and pair its version 2 connection. The provider key remains server-side; the app receives only the declared provider, limit and private loopback connection. See the [Vision guide](../scripts/companion/ocr/GOOGLE_VISION.md) for exact bounds and normalized evidence.
+
+The panel identifies Google Cloud Vision before recognition and explains that the image leaves the device, with possible provider usage charges. Cancel prevents late review results but cannot guarantee that Google stopped already submitted processing or charging. There is no automatic fallback from failed Windows OCR to Vision.
+
+Vision results retain their original provider identity, pixel polygons, axis-aligned bounds, language evidence and optional confidence values. Missing confidence remains unknown. These values do not replace manual review. Unknown or non-English recognition language adds a warning because the field parser primarily recognizes English receipt labels. Switching providers retires the pending capture session; mismatched provider responses cannot produce editable guesses.
+
+Offline integration checks use the reviewed adapter with fake upstream responses, actual owned loopback routes, the real client and the normal confirmation gate. They do not establish live Google account access, general OCR accuracy or a completed native cloud-provider walkthrough. The historical Android checks below exercised Windows OCR.
 
 ## Worked example
 

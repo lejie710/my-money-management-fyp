@@ -1,6 +1,6 @@
 # Ask about selected financial records
 
-Reports → Ask about this period opens a read-only explanation panel for the currently applied report dates. The app calculates the facts itself. An optional Windows model can explain those facts after an explicit question; it cannot add a transaction, change a budget, adjust a goal or save a forecast.
+Reports → Ask about this period opens a read-only explanation panel for the currently applied report dates. The app calculates the facts itself. An explicitly selected local Windows model or OpenAI can explain those facts after an explicit question; it cannot add a transaction, change a budget, adjust a goal or save a forecast.
 
 The calculated facts remain available when no companion is configured or a request fails. Generated wording appears separately from those facts so that its claims can be checked. A model response is an explanation to review, not a replacement for the recorded amounts or a verified financial conclusion.
 
@@ -40,7 +40,7 @@ flowchart LR
     C[Optional groups start off] --> B
     B --> D[Facts visible without a model]
     D --> E[Explicit question]
-    E --> F[Local Windows model]
+    E --> F[Explicitly selected local model or OpenAI]
     F --> G[Shape, facts and current-session checks]
     G --> H[Separate explanation with fact references]
     G --> I[Fixed error or discarded stale result]
@@ -56,11 +56,21 @@ After preparing the pinned local assets, explicitly start assistant mode from th
 python scripts/companion/run_companion.py --mode assistant --run-name assistant-001 --node "C:\path\to\node.exe"
 ```
 
-Follow the companion guide to verify that run and pair the exact installed debug emulator. Enable `EXPO_PUBLIC_LOCAL_COMPANION=1` before starting a new Metro process. After pairing or replacing the helper, open Activity → Setup beside Review receipt, choose Recheck and reopen the assistant from Reports. Setup also reveals the full connection explanation; the Recheck control's accessible name is Recheck connection. The app reads only the known bounded private connection file; the token is not put in UI, command arguments, a ledger or a public environment variable.
+Follow the companion guide to verify that run and pair the exact installed debug emulator. Enable `EXPO_PUBLIC_LOCAL_COMPANION=1` before starting a new Metro process. After pairing or replacing the helper, open Wallet > Tools > Connections, choose Setup beside Review receipt, choose Recheck, and reopen the assistant from Reports. Setup also reveals the full connection explanation; the Recheck control's accessible name is Recheck connection. The app reads only the known bounded private connection file; the token is not put in UI, command arguments, a ledger or a public environment variable.
 
 “Local connection configured” means valid connection details are present. Availability is tested by Ask. “Local model responded” means that request returned an accepted response; it does not mean the answer is correct. Missing model assets, unsupported output, memory pressure, timeout or stopped service leave the deterministic facts readable and require deliberate recovery/retry. There is no cloud fallback or automatic model download.
 
 The model runs on the Windows computer, not on the phone. The public startup check requires at least 6 GiB of available physical memory and stops its owned run after two consecutive one-second samples below 1 GiB. That floor is a conservative check, not a promise that every combination of emulator, editor and other programs will fit. The helper does not close unrelated programs or automatically restart after a memory stop. Its exact native model settings and process-ownership rules are documented in the companion guide.
+
+## Optional OpenAI provider
+
+Select OpenAI explicitly in the companion's private server configuration and pair the resulting version 2 connection. The provider credential stays on the Windows host. The app receives only the provider/model descriptor and private companion token. See the [OpenAI contract](../scripts/companion/assistant/OPENAI.md) and [companion guide](../scripts/companion/README.md).
+
+The panel labels **Ask OpenAI** and explains the cloud destination before the action. The same visible facts and current question are sent; earlier conversation, raw transactions, photos and contact/location details remain excluded. The configured model can resolve to a returned model snapshot; transport validation preserves both values and rejects provider substitutions.
+
+Opening the panel and rechecking connection do not contact OpenAI. Configuration does not establish reachability. Authentication errors, rate limits, refusals and incomplete responses leave calculated facts available and require deliberate recovery/retry. Cancellation cannot undo work the provider has already processed or guarantee that charges are avoided. There is no automatic cloud fallback.
+
+Provider changes clear the active context/session just like connection and wallet changes. The same known-defect checks reject write claims and familiar scope errors. Offline adapter/route/client/UI tests use invented models and responses; live OpenAI account access, model quality and Android cloud-provider execution require separate evidence.
 
 ## Worked example
 
@@ -80,7 +90,7 @@ Answer: income is recorded as zero, so an income-based ratio is undefined. Goal 
 
 ## Evidence and limitations
 
-The integrated branch passes 753 normally isolated JavaScript tests and TypeScript. Source-bound tests and independent review cover selection, currentness, failure recovery, modal-session replacement and account transitions. A separate actual private Windows model evaluation passed 18 responses across nine fixed scenarios repeated twice, including zero income, balance scopes, JPY, negative goal progress and a hostile prompt. The nine distinct final answers were also read against a fixed factual rubric.
+The earlier local-model restoration gate recorded 753 normally isolated JavaScript tests and TypeScript. The historical local-provider evidence below does not establish live OpenAI verification. Source-bound tests and independent review cover selection, currentness, failure recovery, modal-session replacement and account transitions. A separate actual private Windows model evaluation passed 18 responses across nine fixed scenarios repeated twice, including zero income, balance scopes, JPY, negative goal progress and a hostile prompt. The nine distinct final answers were also read against a fixed factual rubric.
 
 Earlier runs failed: numeric fact identifiers were rejected, and a later structurally valid run still used incorrect opening-balance scope. The final schema/prompt changes addressed those observed failures; the evaluation is bounded regression evidence, not a general accuracy score. The final run's median request time was about 19 seconds on the tested shared development workload, with individual requests about 11–33 seconds. Those timings are observations, not a performance promise.
 

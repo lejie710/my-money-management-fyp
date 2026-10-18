@@ -20,6 +20,7 @@ export function createAccountPresentation(options: {
   coordinator: AccountCoordinator;
   today(): string;
   createResetSession?: () => LocalResetController;
+  requestPasswordReset?: (email: string) => Promise<void>;
   /** Optional root recovery wrapper; must remain a read/reconcile action. */
   retry?: () => Promise<AccountResult>;
 }): AccountPresentation {
@@ -84,7 +85,8 @@ export function createAccountPresentation(options: {
       : null;
     return Object.freeze({
       viewToken: `account-view-${binding}-${revision}`,
-      provider: view.provider === 'local-emulator' ? 'configured' : 'unconfigured',
+      provider: view.provider !== 'unconfigured' ? 'configured' : 'unconfigured',
+      cloudAccount: view.provider === 'firebase-cloud',
       phase: view.phase,
       user,
       persistence: view.persistence,
@@ -110,6 +112,7 @@ export function createAccountPresentation(options: {
         view.phase === 'ready' &&
         view.persistence === 'confirmed' &&
         !busy,
+      canRequestEmailReset: !!options.requestPasswordReset && view.phase === 'ready' && !busy,
       canRetry: view.capabilities.retry,
       today,
       profile: Object.freeze({
@@ -162,6 +165,30 @@ export function createAccountPresentation(options: {
     saveLocalProfile: (extras) => invoke(() => coordinator.saveProfileExtras(extras)),
     retry,
     retryProfile: retry,
+    async requestPasswordReset(email: string) {
+      if (disposed || !snapshot.canRequestEmailReset || !options.requestPasswordReset)
+        return {
+          ok: false,
+          pending: false,
+          message: 'Password reset is unavailable in this account view.',
+        };
+      try {
+        await options.requestPasswordReset(email);
+        return {
+          ok: true,
+          pending: false,
+          message:
+            'Password reset requested. If this address can receive a reset, check its inbox. Delivery has not been confirmed.',
+        };
+      } catch {
+        return {
+          ok: false,
+          pending: false,
+          message:
+            'The password reset request was not confirmed. Check the address and connection before trying again.',
+        };
+      }
+    },
     createResetSession() {
       if (disposed || !snapshot.canRequestReset || !options.createResetSession)
         throw new Error('Local password reset is unavailable in the current account view.');

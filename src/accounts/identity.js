@@ -1,32 +1,20 @@
-const { encodeReminderOwner } = require('../reminders/store');
+const ownerCodec = require('./ownerCodec');
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const clone = (value) => JSON.parse(JSON.stringify(value));
-function sameKeys(value, keys) {
-  return object(value) && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
-}
-function encodeDataFamily(family) {
-  if (!sameKeys(family, ['scope', 'actor']))
-    throw new Error('An explicit data family is required.');
-  const tuple = JSON.parse(encodeReminderOwner({ ...family, incarnationId: 'account-family' }));
-  return JSON.stringify(tuple.slice(0, 4));
-}
-function validateDataFamily(family) {
-  encodeDataFamily(family);
-  return clone(family);
-}
-function encodeDataScope(scope) {
-  return JSON.stringify(
-    JSON.parse(encodeDataFamily({ scope, actor: { kind: 'local' } })).slice(0, 2),
-  );
-}
+const encodeDataFamily = ownerCodec.encodeFamily;
+const validateDataFamily = ownerCodec.validateFamily;
+const encodeDataScope = ownerCodec.encodeScope;
 function sameDataFamily(left, right) {
   return encodeDataFamily(left) === encodeDataFamily(right);
 }
-function familyForUser(scope, user) {
+function familyForUser(scope, user, projectId) {
   const projected = projectAccountUser(user);
   return validateDataFamily({
     scope,
-    actor: projected ? { kind: 'firebase', uid: projected.uid } : { kind: 'local' },
+    actor: projected
+      ? projectId
+        ? { kind: 'firebase-hosted', projectId, uid: projected.uid }
+        : { kind: 'firebase', uid: projected.uid }
+      : { kind: 'local' },
   });
 }
 function projectAccountUser(user) {
@@ -79,10 +67,10 @@ function safeAuthMessage(error, operation) {
   if (['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found'].includes(code))
     return 'The email address or password was not accepted.';
   if (code === 'auth/email-already-in-use')
-    return 'That address already has an account. Sign in or use the local reset inbox.';
+    return 'That address already has an account. Sign in or use password reset.';
   if (code === 'auth/weak-password') return 'Choose a stronger password and try again.';
   if (code === 'auth/network-request-failed')
-    return 'The local account service could not be reached. Your saved wallets are retained.';
+    return 'The account service could not be reached. Your saved wallets are retained.';
   if (code === 'auth/too-many-requests')
     return 'The account service is temporarily limiting requests. Recheck before trying again.';
   return operation === 'profile'

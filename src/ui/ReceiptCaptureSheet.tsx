@@ -32,6 +32,7 @@ function ReceiptCaptureContent({
   const draft = useReceiptCapture({ ledger, binding, onSave, onClose, prepareReceiptOrigin });
   const [expandedImage, setExpandedImage] = useState(false);
   const [failedPreview, setFailedPreview] = useState<string | null>(null);
+  const cloud = binding.provider?.engine === 'google-cloud-vision';
   const saving = draft.phase === 'saving';
   const selecting = draft.phase === 'selecting';
   const close = () => {
@@ -45,10 +46,13 @@ function ReceiptCaptureContent({
   };
   return (
     <Sheet title="Review a receipt" onClose={close} busy={saving}>
-      <Text style={ui.heading}>Windows-assisted receipt recognition</Text>
-      <Text style={[ui.body, ui.smallGap]}>
-        Choose a receipt image, then explicitly request recognition. Its image bytes go to the local
-        Windows companion on your computer for OCR. No cloud OCR or automatic transaction is used.
+      <Text style={ui.heading}>
+        {cloud ? 'Google Cloud Vision recognition' : 'Windows-assisted receipt recognition'}
+      </Text>
+      <Text style={[ui.body, ui.smallGap]} testID="receipt-provider-disclosure">
+        {cloud
+          ? 'When you choose Recognize with Google Vision, the selected image is sent through your Windows companion to Google Cloud Vision. Images must be at most 6 MiB. Your provider account usage charges may apply. Review all suggestions before saving an expense.'
+          : 'Choose a receipt image, then explicitly request recognition. Its image bytes go to the local Windows companion on your computer for OCR. No cloud OCR or automatic transaction is used.'}
       </Text>
       {!binding.client ? (
         <Text style={[ui.body, ui.smallGap]} testID="receipt-connection-status">
@@ -57,7 +61,9 @@ function ReceiptCaptureContent({
         </Text>
       ) : (
         <Text style={[ui.hint, ui.smallGap]} testID="receipt-connection-status">
-          Local connection configured. Availability is checked when you choose Recognize receipt.
+          {cloud
+            ? 'Google Cloud Vision is configured. Availability is checked only when you request recognition.'
+            : 'Local connection configured. Availability is checked when you choose Recognize receipt.'}
         </Text>
       )}
       <View style={ui.gap}>
@@ -126,7 +132,9 @@ function ReceiptCaptureContent({
                 accessibilityLiveRegion="polite"
                 testID="receipt-recognizing"
               >
-                Reading this image with the Windows companion…
+                {cloud
+                  ? 'Reading this image with Google Cloud Vision.'
+                  : 'Reading this image with the Windows companion.'}
               </Text>
               <View style={ui.smallGap}>
                 <Action
@@ -141,7 +149,15 @@ function ReceiptCaptureContent({
             <View style={ui.smallGap}>
               <Action
                 secondary
-                label={draft.candidate ? 'Recognize again and replace review' : 'Recognize receipt'}
+                label={
+                  draft.candidate
+                    ? cloud
+                      ? 'Recognize again with Google Vision'
+                      : 'Recognize again and replace review'
+                    : cloud
+                      ? 'Recognize with Google Vision'
+                      : 'Recognize receipt'
+                }
                 disabled={
                   saving || selecting || !binding.client || failedPreview === draft.image.id
                 }

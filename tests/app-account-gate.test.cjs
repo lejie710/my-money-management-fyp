@@ -58,7 +58,19 @@ async function appFixture() {
   account.companion = {
     phase: 'configured',
     revision: 0,
-    binding: null,
+    binding: {
+      key: Object.freeze({}),
+      receipt: {
+        recognize: async () => {
+          throw Error('Unexpected OCR call in App navigation test.');
+        },
+      },
+      assistant: async () => {
+        throw Error('Unexpected assistant request in App navigation test.');
+      },
+      forecast: null,
+      providers: require('../src/companion/providerContract').LEGACY_PROVIDERS,
+    },
     message: 'Not configured',
     enabled: true,
     recheck: async () => {},
@@ -101,6 +113,8 @@ async function appFixture() {
     './src/ui/components': { Action: 'Action', FormError: 'FormError', Sheet: 'Sheet' },
     './src/ui/theme': { colors: {}, ui: {} },
     './src/ui/AppIcon': { AppIcon: 'AppIcon' },
+    './src/ui/useCloudBackup': { useCloudBackup: () => ({ controller: Object.freeze({}) }) },
+    './src/ui/CloudBackupScreen': { CloudBackupScreen: 'CloudBackupScreen' },
     './src/ui/TransactionEditor': { TransactionEditor: 'TransactionEditor', newId: () => 'editor' },
     './legacy/assets/images/money.png': 0,
   };
@@ -427,10 +441,7 @@ test('reopening the assistant replaces its Sheet identity even without an interm
   const range = { startDate: '2026-10-01', endDate: '2026-10-18' };
   const open = () => f.find(tree, (node) => node.type === 'ReportsScreen').props.onAssistant(range);
   const sheet = (value) =>
-    f.find(
-      value,
-      (node) => node.type === 'Sheet' && node.props.title === 'Local financial assistant',
-    );
+    f.find(value, (node) => node.type === 'Sheet' && node.props.title === 'Financial assistant');
   open();
   tree = f.render();
   const first = sheet(tree);

@@ -50,11 +50,18 @@ function sameUser(left, right) {
 
 function createAccountCoordinator(options) {
   const scopeToken = encodeDataScope(options.scope);
+  if (options.firebaseProjectId !== undefined)
+    familyForUser(
+      options.scope,
+      { uid: 'project-validation', email: null, displayName: null },
+      options.firebaseProjectId,
+    );
   if (!options.runtime || typeof options.runtime !== 'object')
     throw new Error('A stable account runtime is required.');
   let cell = runtimes.get(options.runtime);
   if (cell) {
     if (
+      cell.options.firebaseProjectId !== options.firebaseProjectId ||
       cell.options.auth !== options.auth ||
       cell.options.financial !== options.financial ||
       cell.scopeToken !== scopeToken ||
@@ -107,7 +114,11 @@ function createAccountCoordinator(options) {
     runtimes.set(options.runtime, cell);
     publish(cell, {
       phase: 'restoring',
-      provider: auth ? 'local-emulator' : 'unconfigured',
+      provider: auth
+        ? options.firebaseProjectId
+          ? 'firebase-cloud'
+          : 'local-emulator'
+        : 'unconfigured',
       family: null,
       user: null,
       activeOwnerToken: null,
@@ -417,7 +428,7 @@ async function settle(cell, message = '') {
         };
       cell.pendingRegistration = null;
     }
-    const family = familyForUser(cell.options.scope, identity.user),
+    const family = familyForUser(cell.options.scope, identity.user, cell.options.firebaseProjectId),
       signal = cell.signal;
     publish(cell, {
       phase: 'switching',

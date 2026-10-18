@@ -1,12 +1,7 @@
 const test = require('node:test'),
   assert = require('node:assert/strict'),
   path = require('node:path');
-const {
-  hostWithStores,
-  loadSource,
-  ledger,
-  model,
-} = require('./helpers/account-hook-harness.cjs');
+const { hostWithStores, loadSource, ledger, model } = require('./helpers/account-hook-harness.cjs');
 const { deferred, flush } = require('./helpers/native-adapter-vm.cjs');
 const grounding = require('../src/assistant/grounding'),
   sessions = require('../src/assistant/sessionGate'),
@@ -395,5 +390,54 @@ test('panel visibly distinguishes configured connection, known-zero facts, expli
     /model responded.*can still be wrong/,
   );
   assert.ok(find(tree, 'assistant-answer-0'));
+  f.host.unmount();
+});
+
+test('cloud assistant keeps the same facts and clears a pending response when its selected provider changes', async () => {
+  const pending = deferred();
+  const provider = { engine: 'openai', processing: 'cloud', model: 'synthetic-model' };
+  const f = fixture({ provider, transport: () => pending.promise });
+  const asking = f.ask();
+  await flush();
+  f.render({ provider: { ...provider, model: 'other-synthetic-model' } });
+  pending.resolve({
+    model: 'synthetic-snapshot',
+    requestedModel: provider.model,
+    finishReason: 'stop',
+    content: answer().content,
+    provider: {
+      engine: 'openai',
+      processing: 'cloud',
+      model: 'synthetic-snapshot',
+      requestedModel: provider.model,
+    },
+  });
+  assert.equal(await asking, false);
+  assert.equal(f.render().turns.length, 0);
+  assert.ok(f.render().context.facts.length > 0);
+  f.host.unmount();
+});
+
+test('cloud assistant accepts truthful model provenance but retains semantic rejection and explicit cancellation copy', async () => {
+  const provider = { engine: 'openai', processing: 'cloud', model: 'synthetic-model' };
+  const f = fixture({
+    provider,
+    transport: async () => ({
+      model: 'synthetic-snapshot',
+      requestedModel: provider.model,
+      finishReason: 'stop',
+      content: answer().content,
+      provider: {
+        engine: 'openai',
+        processing: 'cloud',
+        model: 'synthetic-snapshot',
+        requestedModel: provider.model,
+      },
+    }),
+  });
+  assert.equal(await f.ask(), true);
+  assert.equal(f.render().turns.length, 1);
+  f.render().cancel();
+  assert.match(f.render().message, /OpenAI may already have processed/);
   f.host.unmount();
 });

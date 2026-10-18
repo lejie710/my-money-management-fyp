@@ -158,6 +158,7 @@ export function useLedger(options: UseLedgerOptions = {}) {
     registerCommitObserver,
     clearSaveError,
     getClock: controller.getClock,
+    compareAndSave: controller.compareAndSave,
     acquireIdentityLease: controller.acquireIdentityLease,
     adoptIdentityTarget: controller.adoptIdentityTarget,
     isIdentityLeaseReady: controller.isIdentityLeaseReady,

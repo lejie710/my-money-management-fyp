@@ -14,6 +14,7 @@ type Session = {
   sessionKey: string;
   initialRange: Range;
   transport?: AssistantTransport;
+  provider?: AssistantPanelProps['provider'];
   requests: Set<AbortController>;
   connectionCurrent: () => boolean;
 };
@@ -90,6 +91,7 @@ export function useAssistantSession({
         sessionKey: JSON.stringify([actorKey, `assistant-${Date.now().toString(36)}-${++serial}`]),
         initialRange: Object.freeze({ ...range }),
         requests: new Set(),
+        provider: configured.binding?.providers?.assistant ?? undefined,
         connectionCurrent: () =>
           connection.getCurrent().binding === configured.binding &&
           connection.getCurrent().revision === configured.revision,
@@ -124,7 +126,7 @@ export function useAssistantSession({
     } catch {
       setError({
         epoch,
-        message: 'Choose a valid applied report period before opening the local assistant.',
+        message: 'Choose a valid applied report period before opening the assistant.',
       });
     }
   };
@@ -137,6 +139,7 @@ export function useAssistantSession({
           sessionKey: session.sessionKey,
           initialRange: session.initialRange,
           transport: session.transport,
+          provider: session.provider,
           isCurrent: () =>
             currentSession(session) &&
             latest.current.ledger === ledger &&

@@ -236,6 +236,7 @@ export function useReceiptSession({
         sessionKey,
         photos,
         client: configured.binding?.receipt ?? null,
+        provider: configured.binding?.providers?.ocr ?? null,
         today: getToday(),
         capture: {
           cameraAvailable: cameraEnabled && capture.cameraAvailable,

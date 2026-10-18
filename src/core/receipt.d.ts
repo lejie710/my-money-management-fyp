@@ -1,12 +1,18 @@
-import { Currency, Ledger, Transaction } from "./model";
+import { Currency, Ledger, Transaction } from './model';
 export type OcrWord = {
   text: string;
   bounds: { x: number; y: number; width: number; height: number };
+  confidence?: number | null;
+  detectedLanguages?: readonly { languageCode: string; confidence: number | null }[];
+  polygon?: readonly { x: number; y: number }[];
 };
 export type OcrResult = {
   version: 1;
-  provider: "windows-media-ocr";
-  language: "en-US";
+  provider: 'windows-media-ocr' | 'google-cloud-vision';
+  language: string;
+  detectedLanguages?: readonly { languageCode: string; confidence: number | null }[];
+  pageConfidence?: number | null;
+  geometry?: 'axis-aligned-envelope-with-original-polygon';
   width: number;
   height: number;
   elapsedMs: number;
@@ -16,14 +22,14 @@ export type OcrResult = {
 export type OcrRow = {
   index: number;
   text: string;
-  bounds: OcrWord["bounds"];
+  bounds: OcrWord['bounds'];
   words: readonly OcrWord[];
 };
 export type ReceiptCandidate = {
   version: 1;
-  provider: "windows-media-ocr";
+  provider: 'windows-media-ocr' | 'google-cloud-vision';
   reviewRequired: true;
-  status: "empty" | "review";
+  status: 'empty' | 'review';
   rows: readonly OcrRow[];
   title: { suggested: string | null; issues: readonly string[] };
   date: {

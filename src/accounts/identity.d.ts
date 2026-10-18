@@ -1,7 +1,4 @@
-import {
-  ReminderScope,
-  ReminderActor,
-} from "../reminders/coordinator";
+import { ReminderScope, ReminderActor } from '../reminders/coordinator';
 export type DataScope = ReminderScope;
 export type DataActor = ReminderActor;
 export type DataFamily = { scope: DataScope; actor: DataActor };
@@ -17,6 +14,7 @@ export function sameDataFamily(left: DataFamily, right: DataFamily): boolean;
 export function familyForUser(
   scope: DataScope,
   user: AccountUser | null,
+  projectId?: string,
 ): DataFamily;
 export function projectAccountUser(value: unknown): AccountUser | null;
 export function normalizeDisplayName(value: unknown): string;

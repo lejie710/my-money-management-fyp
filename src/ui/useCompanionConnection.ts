@@ -3,14 +3,18 @@ import { readPrivateCompanionConnection } from '../companion/expoConnection';
 import { createReceiptClient, type ReceiptClient } from '../receipts/client';
 import { createAssistantClient } from '../assistant/client';
 import type { AssistantTransport } from './assistantUiTypes';
+import { createForecastClient, type ForecastTransportBinding } from '../forecast/client';
+import { providersForConnection, type CompanionProviders } from '../companion/providerContract';
 
 declare const __DEV__: boolean;
 declare const process: { env: { EXPO_PUBLIC_LOCAL_COMPANION?: string } };
 export const localCompanionEnabled = __DEV__ && process.env.EXPO_PUBLIC_LOCAL_COMPANION === '1';
 export type CompanionClientBinding = Readonly<{
   key: object;
-  receipt: ReceiptClient;
-  assistant: AssistantTransport;
+  receipt: ReceiptClient | null;
+  assistant: AssistantTransport | null;
+  forecast: ForecastTransportBinding['transport'] | null;
+  providers: CompanionProviders;
 }>;
 let requestSequence = 0;
 const requestId = () =>
@@ -40,7 +44,7 @@ export function useCompanionConnection({
     revision: 0,
     message: enabled
       ? 'No local companion connection has been read.'
-      : 'Local receipt recognition is unavailable in this build.',
+      : 'Optional connections are not enabled in this build.',
     binding: null,
   });
   const [view, setView] = useState(current.current);
@@ -78,16 +82,24 @@ export function useCompanionConnection({
         });
         return;
       }
-      const receipt = createReceiptClient(configuration);
-      const assistant = createAssistantClient(configuration, {
-        createRequestId: requestId,
-      }).complete;
+      const providers = providersForConnection(configuration);
+      const receipt = providers.ocr ? createReceiptClient(configuration) : null;
+      const assistant = providers.assistant
+        ? createAssistantClient(configuration, {
+            createRequestId: requestId,
+          }).complete
+        : null;
+      const forecast = providers.forecast
+        ? createForecastClient(configuration, {
+            createRequestId: requestId,
+          }).forecast
+        : null;
       publish({
         phase: 'configured',
         revision,
         message:
-          'Local connection configured. Availability is checked when you request recognition or an explanation.',
-        binding: Object.freeze({ key: Object.freeze({}), receipt, assistant }),
+          'Windows companion configured. Availability is checked when you request each selected service.',
+        binding: Object.freeze({ key: Object.freeze({}), receipt, assistant, forecast, providers }),
       });
     } catch {
       if (entry.alive && context.current === entry && revision === entry.revision)
@@ -116,8 +128,7 @@ export function useCompanionConnection({
       publish({
         phase: 'disabled',
         revision: entry.revision,
-        message:
-          'Local receipt recognition is unavailable in this build. Manual entry is available.',
+        message: 'Optional connections are not enabled in this build. Manual entry is available.',
         binding: null,
       });
     return () => {

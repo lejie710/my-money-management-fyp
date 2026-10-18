@@ -85,6 +85,8 @@ test('an uncertain save and same-incarnation restore cannot reopen a stale captu
     './src/ui/theme': { colors: {}, ui: {} },
     './src/ui/components': { Action: 'Action', FormError: 'FormError', Sheet: 'Sheet' },
     './src/ui/AppIcon': { AppIcon: 'AppIcon' },
+    './src/ui/useCloudBackup': { useCloudBackup: () => ({ controller: Object.freeze({}) }) },
+    './src/ui/CloudBackupScreen': { CloudBackupScreen: 'CloudBackupScreen' },
     './src/ui/useExportSession': {
       useExportSession: () => ({
         session: null,

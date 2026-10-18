@@ -36,18 +36,20 @@ const groups: readonly { key: AssistantGroup; title: string; description: string
 /** Content only. The parent owns scrolling, keyboard avoidance, safe area and modal/navigation. */
 export function AssistantPanel(props: AssistantPanelProps) {
   const assistant = useAssistant(props);
+  const cloud = props.provider?.engine === 'openai';
   return (
     <View testID="assistant-panel">
       <Text style={ui.title} accessibilityRole="header">
         Ask about these records
       </Text>
       <Text style={[ui.body, ui.smallGap]}>
-        A local Windows model can explain the financial facts you select. Your questions stay in
-        this open conversation; only the current question and facts are sent.
+        {cloud
+          ? 'OpenAI can explain the financial facts you select. Only the current question and selected facts are sent through your Windows companion to OpenAI; earlier questions and replies are not sent.'
+          : 'A local Windows model can explain the financial facts you select. Your questions stay in this open conversation; only the current question and facts are sent.'}
       </Text>
       <View style={[ui.card, ui.gap]}>
         <Text style={ui.heading} accessibilityRole="header">
-          Windows companion
+          {cloud ? 'OpenAI through your companion' : 'Windows companion'}
         </Text>
         <Text
           style={[ui.body, ui.smallGap]}
@@ -57,12 +59,13 @@ export function AssistantPanel(props: AssistantPanelProps) {
           {!assistant.configured
             ? 'Companion not configured. Calculated facts are still available.'
             : assistant.turns.length
-              ? 'Local model responded. An explanation can still be wrong; compare it with the facts.'
-              : 'Local connection configured. Availability is checked when you ask.'}
+              ? 'The model responded. An explanation can still be wrong; compare it with the facts.'
+              : 'Connection configured. Provider availability is checked when you ask.'}
         </Text>
-        <Text style={[ui.hint, ui.smallGap]}>
-          The model runs on the connected Windows computer, not on this phone. A first response may
-          take longer while the model loads.
+        <Text style={[ui.hint, ui.smallGap]} testID="assistant-provider-disclosure">
+          {cloud
+            ? `Cloud processing by OpenAI using ${props.provider!.model}. The displayed fact rows and your question leave the device only when you ask. Your provider account's usage charges may apply.`
+            : 'The model runs on the connected Windows computer, not on this phone. A first response may take longer while the model loads.'}
         </Text>
         {props.ledger.mode === 'sample' ? (
           <Text style={[ui.hint, ui.smallGap]} testID="assistant-sample">
@@ -140,7 +143,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
             Facts available to the model
           </Text>
           <Text style={[ui.body, ui.smallGap]} testID="assistant-applied-period">
-            {assistant.context.startDate} through {assistant.context.endDate}, inclusive ·{' '}
+            {assistant.context.startDate} through {assistant.context.endDate}, inclusive,{' '}
             {assistant.context.currency}
           </Text>
           {assistant.context.recordedIncomeIsZero ? (
@@ -179,7 +182,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
       />
       <View style={ui.smallGap}>
         <Action
-          label="Ask local model"
+          label={cloud ? 'Ask OpenAI' : 'Ask local model'}
           disabled={!assistant.canAsk || assistant.busy || !assistant.question.trim()}
           onPress={() => {
             void assistant.ask();
@@ -196,7 +199,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
               accessibilityLiveRegion="polite"
               testID="assistant-pending"
             >
-              Waiting for the Windows model…
+              {cloud ? 'Waiting for OpenAI.' : 'Waiting for the Windows model.'}
             </Text>
           </View>
           <View style={ui.smallGap}>
@@ -243,7 +246,9 @@ export function AssistantPanel(props: AssistantPanelProps) {
               <Text selectable style={[ui.body, ui.smallGap]}>
                 {turn.question}
               </Text>
-              <Text style={[styles.label, ui.gap]}>Local model explanation</Text>
+              <Text style={[styles.label, ui.gap]}>
+                {cloud ? 'OpenAI explanation' : 'Local model explanation'}
+              </Text>
               <Text selectable style={[ui.body, ui.smallGap]} testID={`assistant-answer-${index}`}>
                 {turn.answer}
               </Text>

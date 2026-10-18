@@ -9,6 +9,7 @@ const {
 } = require('./identity');
 const { createGuardedAuthPersistence } = require('./guardedPersistence');
 const { createLocalResetController } = require('./localReset');
+const { validateCloudConfiguration } = require('../cloud/config');
 const bindings = new WeakMap();
 const CONFIG = Object.freeze({ apiKey: 'demo-fyp-local', projectId: 'demo-fyp-local' });
 const EMULATOR_URL = 'http://127.0.0.1:9099';
@@ -36,7 +37,16 @@ function createFirebaseAuthAdapter({
   sdk,
   timeoutMs = 20000,
   fetchImpl = globalThis.fetch,
+  configuration,
 }) {
+  const cloudConfig = configuration ? validateCloudConfiguration(configuration) : null;
+  const config = cloudConfig?.firebase ?? CONFIG;
+  const emulatorUrl = cloudConfig
+    ? cloudConfig.emulators
+      ? `http://127.0.0.1:${cloudConfig.emulators.auth}`
+      : null
+    : EMULATOR_URL;
+  const configToken = JSON.stringify(cloudConfig);
   if (
     !runtime ||
     typeof runtime !== 'object' ||
@@ -51,6 +61,7 @@ function createFirebaseAuthAdapter({
   if (existing) {
     if (
       existing.scopeToken !== scopeToken ||
+      existing.configToken !== configToken ||
       existing.storage !== storage ||
       existing.fetchImpl !== fetchImpl ||
       SDK_METHODS.some((name) => existing.sdk[name] !== sdk[name])
@@ -60,10 +71,14 @@ function createFirebaseAuthAdapter({
       );
     return existing.adapter;
   }
-  const appName = `mymoney-local-${encodeURIComponent(scopeToken)}`;
-  const prefix = `@mymoney/auth/v1/${encodeURIComponent(scopeToken)}/`;
+  const appName = cloudConfig
+    ? `mymoney-cloud-${config.projectId}-${encodeURIComponent(scopeToken)}`
+    : `mymoney-local-${encodeURIComponent(scopeToken)}`;
+  const prefix = cloudConfig
+    ? `@mymoney/auth-cloud/v1/${config.projectId}/${encodeURIComponent(scopeToken)}/`
+    : `@mymoney/auth/v1/${encodeURIComponent(scopeToken)}/`;
   // Pinned SDK13 native persistence key; verified against its installed source/tests.
-  const sessionKey = `firebase:authUser:${CONFIG.apiKey}:${appName}`;
+  const sessionKey = `firebase:authUser:${config.apiKey}:${appName}`;
   const guard = createGuardedAuthPersistence(storage, { prefix, sessionKey });
   let app = null,
     auth = null,
@@ -153,22 +168,26 @@ function createFirebaseAuthAdapter({
     const preflight = guard.preflight();
     try {
       if (sdk.getApps().some((candidate) => candidate.name === appName)) throw restartError();
-      app = sdk.initializeApp(CONFIG, appName);
+      app = sdk.initializeApp(config, appName);
       if (
         app.name !== appName ||
-        app.options?.apiKey !== CONFIG.apiKey ||
-        app.options?.projectId !== CONFIG.projectId ||
-        Object.keys(app.options).some((key) => !Object.hasOwn(CONFIG, key))
+        app.options?.apiKey !== config.apiKey ||
+        app.options?.projectId !== config.projectId ||
+        Object.keys(app.options).some((key) => !Object.hasOwn(config, key))
       )
         throw restartError();
       auth = sdk.initializeAuth(app, { persistence: sdk.getReactNativePersistence(guard.storage) });
-      sdk.connectAuthEmulator(auth, EMULATOR_URL, { disableWarnings: true });
-      if (
-        auth.emulatorConfig?.host !== '127.0.0.1' ||
-        auth.emulatorConfig?.port !== 9099 ||
-        auth.emulatorConfig?.protocol !== 'http'
-      )
-        throw restartError();
+      if (emulatorUrl) {
+        sdk.connectAuthEmulator(auth, emulatorUrl, { disableWarnings: true });
+        const expectedPort = cloudConfig?.emulators?.auth ?? 9099;
+        if (
+          auth.emulatorConfig?.host !== '127.0.0.1' ||
+          auth.emulatorConfig?.port !== expectedPort ||
+          auth.emulatorConfig?.protocol !== 'http'
+        )
+          throw restartError();
+      } else if (auth.emulatorConfig) throw restartError();
+      if (auth.tenantId) throw restartError();
       sdk.beforeAuthStateChanged(
         auth,
         async (next) => {
@@ -338,7 +357,28 @@ function createFirebaseAuthAdapter({
         return sdk.updateProfile(auth.currentUser, { displayName: value });
       });
     },
+    getSdkContext() {
+      if (
+        !cloudConfig ||
+        !initialized ||
+        pending() ||
+        restartRequired ||
+        guard.getState().blocked ||
+        !auth?.currentUser ||
+        auth.tenantId
+      )
+        throw restartError();
+      if (app.options.projectId !== config.projectId) throw restartError();
+      return { app, auth, configuration: cloudConfig, uid: auth.currentUser.uid };
+    },
+    requestPasswordReset(email) {
+      if (!cloudConfig) throw new Error('Use the local reset inbox for emulator-only accounts.');
+      const value = normalizeCredentials({ email, password: 'validation-only' });
+      return mutate('reset', () => sdk.sendPasswordResetEmail(auth, value.email));
+    },
     createResetSession() {
+      if (cloudConfig)
+        throw new Error('Hosted accounts use an explicit password reset email request.');
       if (!initialized || !auth || pending() || restartRequired || guard.getState().blocked)
         throw restartError();
       const revision = contextRevision;
@@ -371,7 +411,7 @@ function createFirebaseAuthAdapter({
       });
     },
   };
-  bindings.set(runtime, { scopeToken, storage, sdk, fetchImpl, adapter });
+  bindings.set(runtime, { scopeToken, configToken, storage, sdk, fetchImpl, adapter });
   return adapter;
 }
 module.exports = { createFirebaseAuthAdapter, CONFIG, EMULATOR_URL };

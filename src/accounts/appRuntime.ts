@@ -11,6 +11,8 @@ import { createProfileStore } from './profileStore';
 import { encodeDataFamily, type DataFamily, type DataScope } from './identity';
 import { createFinancialAccountBridge } from './financialBridge';
 import { createAccountPresentation } from './accountPresentation';
+import type { CloudConfiguration } from '../cloud/config';
+import type { LocalFirebaseAuthAdapter } from './firebaseAdapter';
 import type { LocalResetController } from '../ui/accountUiTypes';
 import {
   localLedgerScope,
@@ -24,13 +26,21 @@ type Storage = {
   setItem(key: string, value: string): Promise<void>;
   removeItem(key: string): Promise<void>;
 };
-type Auth = AccountAuthAdapter & { createResetSession?(): LocalResetController };
-declare const process: { env: { EXPO_PUBLIC_LOCAL_AUTH_EMULATOR?: string } };
+type Auth = AccountAuthAdapter & {
+  createResetSession?(): LocalResetController;
+  requestPasswordReset?(email: string): Promise<void>;
+  getSdkContext?: LocalFirebaseAuthAdapter['getSdkContext'];
+};
+declare const process: {
+  env: { EXPO_PUBLIC_LOCAL_AUTH_EMULATOR?: string; EXPO_PUBLIC_FIREBASE_MODE?: string };
+};
 
 export function createAccountAppRuntime(options: {
   scope: DataScope;
   storage: Storage;
   auth: Auth | null;
+  cloudConfiguration?: CloudConfiguration | null;
+  cloudConfigurationError?: string;
   getClock(): AchievementClock;
   createGuestLedger(): Ledger;
   timeoutMs?: number;
@@ -80,6 +90,7 @@ export function createAccountAppRuntime(options: {
   const coordinator = createAccountCoordinator({
     runtime: {},
     scope: options.scope,
+    firebaseProjectId: options.cloudConfiguration?.firebase.projectId,
     auth: options.auth,
     financial: bridge.financial,
     storageForFamily,
@@ -109,15 +120,25 @@ export function createAccountAppRuntime(options: {
     coordinator,
     today: () => options.getClock().today,
     retry,
-    createResetSession: options.auth?.createResetSession
-      ? () => options.auth!.createResetSession!()
-      : undefined,
+    requestPasswordReset:
+      options.cloudConfiguration && options.auth?.requestPasswordReset
+        ? options.auth.requestPasswordReset
+        : undefined,
+    createResetSession:
+      !options.cloudConfiguration && options.auth?.createResetSession
+        ? () => options.auth!.createResetSession!()
+        : undefined,
   });
   return {
     bridge,
     coordinator,
     presentation,
     storageForFamily,
+    cloud: {
+      configuration: options.cloudConfiguration ?? null,
+      error: options.cloudConfigurationError ?? '',
+      getSdkContext: options.auth?.getSdkContext,
+    },
     ledgerOptions: {
       runtime: {},
       deferInitialRestore: true,
@@ -140,7 +161,13 @@ let defaultRuntime: ReturnType<typeof createAccountAppRuntime> | null = null;
 export function getAccountAppRuntime() {
   if (!defaultRuntime) {
     let auth: Auth | null = null;
-    if (process.env.EXPO_PUBLIC_LOCAL_AUTH_EMULATOR === '1') {
+    const cloud: { configuration: CloudConfiguration | null; error: string } =
+      process.env.EXPO_PUBLIC_FIREBASE_MODE && process.env.EXPO_PUBLIC_FIREBASE_MODE !== 'off'
+        ? (
+            require('../cloud/nativeConfig') as typeof import('../cloud/nativeConfig')
+          ).configuredFirebase()
+        : { configuration: null, error: '' };
+    if (cloud.configuration || process.env.EXPO_PUBLIC_LOCAL_AUTH_EMULATOR === '1') {
       try {
         const { createLocalFirebaseAuthAdapter } =
           require('./firebaseNative') as typeof import('./firebaseNative');
@@ -148,6 +175,7 @@ export function getAccountAppRuntime() {
           runtime: {},
           scope: localLedgerScope,
           storage: AsyncStorage,
+          configuration: cloud.configuration ?? undefined,
         });
       } catch {
         const unavailable = async () => ({
@@ -177,6 +205,8 @@ export function getAccountAppRuntime() {
       scope: localLedgerScope,
       storage: AsyncStorage,
       auth,
+      cloudConfiguration: cloud.configuration,
+      cloudConfigurationError: cloud.error,
       getClock: getLocalLedgerClock,
       validateConfiguration: validateLocalLedgerConfiguration,
       createGuestLedger: createLocalInitialLedger,

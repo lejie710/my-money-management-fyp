@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Action, FormError, RowAction, Screen } from './components';
+import { Action, Field, FormError, RowAction, Screen } from './components';
 import { AccountCredentialsForm } from './AccountCredentialsForm';
 import { AccountProfileForm } from './AccountProfileForm';
 import { LocalResetForm } from './LocalResetForm';
@@ -16,10 +16,12 @@ export function AccountScreen(props: Props) {
 
 function AccountScreenContent({ controller, state, onBack }: Props & { state: AccountUiState }) {
   const [route, setRoute] = useState<
-    'home' | 'sign-in' | 'register' | 'profile' | 'reset' | 'sign-out'
+    'home' | 'sign-in' | 'register' | 'profile' | 'reset' | 'email-reset' | 'sign-out'
   >('home');
   const [reset, setReset] = useState<LocalResetController | null>(null);
   const [pageError, setPageError] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [emailResetMessage, setEmailResetMessage] = useState('');
   const operation = useAccountOperation(`${state.viewToken}/account`);
   const busy = state.busy || operation.busy;
   const home = () => setRoute('home');
@@ -57,7 +59,9 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
           <Text style={[ui.body, ui.smallGap]}>
             {state.provider === 'unconfigured'
               ? 'Your wallet works without signing in. Accounts are an optional local connection.'
-              : 'Accounts keep separate wallets on this device. Signing in does not upload or transfer your records.'}
+              : state.cloudAccount
+                ? 'Firebase accounts keep separate wallets on this device. Cloud backup and guest copying require separate confirmation in Connections.'
+                : 'Accounts keep separate wallets on this device. Signing in does not upload or transfer your records.'}
           </Text>
           <View style={[ui.card, ui.gap]}>
             <Text style={ui.heading} testID="account-owner">
@@ -71,6 +75,7 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
               </Text>
             ) : null}
             {state.provider === 'configured' &&
+            state.user &&
             state.sessionRestored &&
             state.persistence === 'confirmed' ? (
               <Text style={[ui.hint, ui.smallGap]} testID="account-session-status">
@@ -81,10 +86,10 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
               {state.provider === 'unconfigured'
                 ? 'No account service is configured in this build.'
                 : state.service === 'unavailable'
-                  ? 'Local account service unavailable.'
+                  ? 'Account service unavailable.'
                   : state.service === 'available'
-                    ? 'Local account service available.'
-                    : 'Local account service has not been checked.'}
+                    ? 'Account service available.'
+                    : 'Account service has not been checked.'}
             </Text>
           </View>
           {state.profile.displayNamePending ? (
@@ -126,6 +131,20 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
                 disabled={busy || !state.canEditProfile}
                 onPress={() => setRoute('profile')}
                 testID="account-edit-profile"
+              />
+            </View>
+          ) : null}
+          {state.canRequestEmailReset ? (
+            <View style={ui.smallGap}>
+              <Action
+                secondary
+                label="Request password reset email"
+                disabled={busy}
+                onPress={() => {
+                  setEmailResetMessage('');
+                  setRoute('email-reset');
+                }}
+                testID="account-email-reset"
               />
             </View>
           ) : null}
@@ -178,6 +197,49 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
       ) : null}
       {route === 'profile' ? (
         <AccountProfileForm state={state} controller={controller} onBack={home} />
+      ) : null}
+      {route === 'email-reset' ? (
+        <View>
+          <Action secondary label="Back to Account" disabled={busy} onPress={home} />
+          <Text style={[ui.title, ui.gap]}>Password reset</Text>
+          <Text style={[ui.body, ui.smallGap]}>
+            Request a reset from your configured Firebase project. A successful request does not
+            confirm email delivery.
+          </Text>
+          <Field
+            label="Account email"
+            value={resetEmail}
+            editable={!busy}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            onChangeText={(value) => {
+              setResetEmail(value);
+              setEmailResetMessage('');
+            }}
+            testID="email-reset-address"
+          />
+          <Action
+            label={busy ? 'Requesting…' : 'Request reset email'}
+            disabled={busy || !resetEmail.trim() || !controller.requestPasswordReset}
+            onPress={() => {
+              void operation.run(async () => {
+                const result = await controller.requestPasswordReset!(resetEmail.trim());
+                setEmailResetMessage(result.message);
+                return result;
+              });
+            }}
+            testID="email-reset-submit"
+          />
+          {emailResetMessage ? (
+            <Text
+              style={[ui.body, ui.gap]}
+              accessibilityLiveRegion="polite"
+              testID="email-reset-result"
+            >
+              {emailResetMessage}
+            </Text>
+          ) : null}
+        </View>
       ) : null}
       {route === 'reset' && reset ? (
         <LocalResetForm

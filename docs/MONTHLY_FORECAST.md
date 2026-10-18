@@ -1,6 +1,6 @@
 # Forecast recorded monthly expenses
 
-Reports → Open expense forecast projects six future months from the expenses recorded in the current wallet. It is a deterministic calculation on the device: no companion, model service, network request or additional Python installation is needed. Forecasts do not create transactions or change budgets, goals or balances.
+Reports → Open expense forecast projects six future months from the expenses recorded in the current wallet. The default deterministic calculation runs on the device without a companion, network request, or Python installation. An optional local Prophet comparison can be requested explicitly from the same panel. Forecasts do not create transactions or change budgets, goals or balances.
 
 The target is recorded expenses, including an expense saved from receipt review. Income and debt payments are excluded. Missing transactions and changes in spending can make the projection a poor description of future real spending. The feature does not claim that the wallet contains a complete financial history.
 
@@ -43,7 +43,17 @@ The implementation compares three explicit candidates using the same completed h
 
 The trend damping is a project heuristic. Every candidate is bounded between zero and twice the largest value among its latest six training months, then rounded once to the currency's smallest unit. The same procedure applies inside historical comparisons and future projections. JPY retains whole-yen precision; MYR retains sen. Exact rational arithmetic prevents monetary half-tie drift, while the public results remain ordinary integer numbers.
 
-The bound prevents extreme extrapolation in this implementation. It is neither a confidence interval nor a spending limit: actual future expenses can exceed it. This implementation is not Prophet. The original Flask/Prophet experiment remains archived under `legacy/`; no Prophet execution or accuracy is claimed by this feature.
+The bound prevents extreme extrapolation in this implementation. It is neither a confidence interval nor a spending limit: actual future expenses can exceed it. These three device methods are separate from the optional Prophet model. Their bounds and historical scores must not be attributed to Prophet.
+
+## Optional local Prophet comparison
+
+Prophet controls appear only when its connection is configured; setup remains discoverable under Wallet > Connections. Without that connection, the screen shows the ordinary device forecast. After preparing and pairing the [local Prophet service](../tools/forecast/README.md), open the forecast panel, apply its date/category, and choose Run local Prophet. Only the applied currency, dates, and completed monthly expense totals go to the connected Windows host. Opening the screen does not start a fit. The device result remains available if Prophet is disconnected, unavailable, or cancelled.
+
+Prophet requires 8 to 120 completed months and at least three active expense months. Longer histories are rejected with an explicit explanation rather than silently truncated. It uses the same excluded partial month and the same six future target months as the device calculation. The displayed result labels the provider, training period, and corresponding device amount for each month.
+
+The model uses an explicit linear configuration without seasonal components or prediction intervals. Its output is approximate and rounded to the currency's minor unit. Negative estimates remain visible with a warning that they are model output, not possible recorded expense entries. The device method's historical MAE is not a score for Prophet; the separate evaluation command in the service guide compares common historical targets when needed.
+
+Cancel, closing the panel, changing an applied selection, editing its date/category, changing the relevant records, or switching owner/provider prevents a late model response from appearing. Cancellation asks the owned service to stop that request's worker; unconfirmed cleanup blocks further fits. A result never creates a transaction or changes a budget or savings goal.
 
 ## Read the historical error correctly
 

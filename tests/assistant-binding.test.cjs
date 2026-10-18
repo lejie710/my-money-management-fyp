@@ -175,6 +175,12 @@ test('shared connection constructs OCR and assistant clients from the same priva
     path.join(__dirname, '../src/ui/useCompanionConnection.ts'),
     {
       react: host.react,
+      '../forecast/client': {
+        createForecastClient() {
+          throw Error('Legacy pairing must not construct a forecast client.');
+        },
+      },
+      '../companion/providerContract': require('../src/companion/providerContract'),
       '../companion/expoConnection': { readPrivateCompanionConnection: async () => config },
       '../receipts/client': {
         createReceiptClient(value) {

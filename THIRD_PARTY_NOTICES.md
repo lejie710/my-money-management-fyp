@@ -14,7 +14,9 @@ The version and source-hash checks deliberately require review before upgrading 
 
 ## Installed packages and optional model assets
 
-JavaScript packages are installed from the pinned package lockfiles and retain the licenses included by their respective authors. Generated native projects, installed packages and downloaded model/runtime binaries are not distributed in this source repository.
+JavaScript packages are installed from the pinned package lockfiles and retain the licenses included by their respective authors. Generated native projects, installed packages and downloaded model/runtime binaries are not distributed in this source repository. Backup integrity checks use `@noble/hashes` 2.4.0, copyright Paul Miller, under its MIT license; retain the package license when distributing installed or bundled dependencies.
+
+The optional [Flask/Prophet service](tools/forecast/README.md) installs its Python dependencies separately from a Windows/Python 3.12 version-and-hash lock. Those packages, including the native model runtime shipped with Prophet, retain their upstream licenses and notices. No Python wheel, installed environment or native model binary is included here.
 
 The optional local model configuration identifies Qwen3-4B-Instruct-2507 and its GGUF distribution under Apache-2.0. The companion's [asset manifest](scripts/companion/assets.lock.json) records the model revision and upstream runtime sources, and its [setup guide](scripts/companion/README.md) describes the separate local assets. Consult and preserve the upstream licenses when obtaining or redistributing those assets; the project's MIT license does not relicense them.
 
@@ -22,4 +24,4 @@ The optional local model configuration identifies Qwen3-4B-Instruct-2507 and its
 
 The online map displays OpenFreeMap, OpenMapTiles and OpenStreetMap attribution through the map component. Retain that attribution when changing its presentation or provider. See [transaction context](docs/TRANSACTION_CONTEXT.md) for the implemented map behavior and network requirements.
 
-The current interface uses platform fonts and project-authored outline icons. Unverified artwork from the original submission is not included. A final screenshot gallery will use fictional records and carry a disclosure beside the images; diagnostic screenshots from development are not the public gallery.
+The current interface uses platform fonts and project-authored outline icons. Unverified artwork from the original submission is not included. The repository's Android gallery contains unaltered captures of the implemented interface. The README explains the illustration data; diagnostic development frames are not included.

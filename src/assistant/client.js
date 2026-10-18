@@ -1,4 +1,10 @@
-const { AssistantError, MESSAGES, MODEL_ID, wireFromPayload, requestId } = require('./protocol');
+const { AssistantError, MESSAGES, wireFromPayload, requestId } = require('./protocol');
+const {
+  getProvider,
+  providerRequestBinding,
+  PROVIDER_HEADER,
+} = require('../companion/providerContract');
+const { validateAssistantResponse } = require('./providerResponse');
 const MAX_RESPONSE = 8192;
 function createAssistantClient(
   config,
@@ -21,12 +27,19 @@ function createAssistantClient(
     timeoutMs > 123000
   )
     throw new AssistantError('MODEL_UNAVAILABLE');
+  const provider = getProvider(config, 'assistant');
+  if (!provider) throw new AssistantError('MODEL_UNAVAILABLE');
+  const binding = providerRequestBinding(config, 'assistant');
   const base = config.url.slice(0, -'/v1/recognize'.length),
     token = config.token;
   const post = (path, body, signal) =>
     fetcher(base + path, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...(binding === null ? {} : { [PROVIDER_HEADER]: binding }),
+      },
       body: JSON.stringify(body),
       signal,
       redirect: 'error',
@@ -104,23 +117,26 @@ function createAssistantClient(
           throw new AssistantError(
             Object.hasOwn(MESSAGES, result.error?.code) ? result.error.code : 'FAILED',
           );
-        if (
-          result.requestId !== id ||
-          result.provider?.engine !== 'lemonade' ||
-          result.provider.model !== MODEL_ID ||
-          !['vulkan', 'cpu'].includes(result.provider.backend) ||
-          typeof result.result?.content !== 'string' ||
-          !result.result.content.trim() ||
-          result.result.content.length > 1800 ||
-          result.result.finishReason !== 'stop'
-        )
+        if (result.requestId !== id || (binding !== null && result.providerBinding !== binding))
           throw new AssistantError('INVALID_MODEL_RESPONSE');
+        const provenance =
+          binding === null && result.provider?.engine === 'lemonade'
+            ? { ...result.provider, processing: 'local' }
+            : result.provider;
+        const accepted = validateAssistantResponse(
+          {
+            model: result.provider?.model,
+            ...(provider.engine === 'openai'
+              ? { requestedModel: result.provider?.requestedModel }
+              : {}),
+            content: result.result?.content,
+            finishReason: result.result?.finishReason,
+            provider: provenance,
+          },
+          provider,
+        );
         if (abort.signal.aborted) throw new AssistantError(timedOut ? 'TIMEOUT' : 'CANCELLED');
-        return {
-          model: result.provider.model,
-          content: result.result.content,
-          finishReason: result.result.finishReason,
-        };
+        return accepted;
       } catch (error) {
         if (abort.signal.aborted) throw new AssistantError(timedOut ? 'TIMEOUT' : 'CANCELLED');
         if (error instanceof AssistantError) throw error;

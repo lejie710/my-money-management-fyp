@@ -1,21 +1,19 @@
-import { Ledger, LedgerIdentityContext } from "../core/model";
-import { ReminderOwner } from "../reminders/coordinator";
-import { DataScope, DataFamily, AccountUser } from "./identity";
-import { FamilyLedgerStorage } from "./familyStorage";
-import { LocalProfileExtras, createProfileStore } from "./profileStore";
+import { Ledger, LedgerIdentityContext } from '../core/model';
+import { ReminderOwner } from '../reminders/coordinator';
+import { DataScope, DataFamily, AccountUser } from './identity';
+import { FamilyLedgerStorage } from './familyStorage';
+import { LocalProfileExtras, createProfileStore } from './profileStore';
 export type ConfirmedIdentity = {
   user: AccountUser | null;
-  persistence: "confirmed" | "unconfirmed";
-  service: "available" | "unavailable" | "unchecked";
+  persistence: 'confirmed' | 'unconfirmed';
+  service: 'available' | 'unavailable' | 'unchecked';
   mutationPending: boolean;
-  recovery?: "retry" | "restart";
+  recovery?: 'retry' | 'restart';
 };
 /** A stable root-owned SDK binding; never returns tokens, passwords, raw User or session bytes. */
 export interface AccountAuthAdapter {
   /** Install this persistent guard through beforeAuthStateChanged before restoring/publishing SDK identities. */
-  initialize(
-    beforeIdentityChange: () => Promise<void>,
-  ): Promise<ConfirmedIdentity>;
+  initialize(beforeIdentityChange: () => Promise<void>): Promise<ConfirmedIdentity>;
   confirmIdentity(): Promise<ConfirmedIdentity>;
   /** Signals changes only; the coordinator explicitly requests initial confirmation. */
   subscribe(listener: () => void): () => void;
@@ -44,11 +42,9 @@ export interface FinancialAccountAccess {
   isIdentityLeaseReady(lease: FinancialLease): boolean;
   /** MUST synchronously freeze the ref-backed write/restore/editor gate before its first await. */
   prepareIdentityChange(context: {
-    reason: "restore" | "mutation" | "reconcile";
+    reason: 'restore' | 'mutation' | 'reconcile';
     activeOwnerToken: string | null;
-  }): Promise<
-    { ok: true; lease: FinancialLease } | { ok: false; message: string }
-  >;
+  }): Promise<{ ok: true; lease: FinancialLease } | { ok: false; message: string }>;
   /** Hydrate target hooks and initialize owner baselines while the lease remains held. Check isCurrent before publishing effects. */
   activate(
     lease: FinancialLease,
@@ -66,25 +62,20 @@ export interface FinancialAccountAccess {
 }
 export type AccessView = {
   readonly phase:
-    | "restoring"
-    | "ready"
-    | "switching"
-    | "session-unavailable"
-    | "wallet-unavailable";
-  readonly provider: "local-emulator" | "unconfigured";
+    'restoring' | 'ready' | 'switching' | 'session-unavailable' | 'wallet-unavailable';
+  readonly provider: 'local-emulator' | 'firebase-cloud' | 'unconfigured';
   readonly family: DataFamily | null;
   readonly user: AccountUser | null;
   readonly activeOwnerToken: string | null;
-  readonly operation:
-    "sign-in" | "register" | "sign-out" | "profile" | "profile-extras" | null;
-  readonly persistence: "confirmed" | "unconfirmed";
+  readonly operation: 'sign-in' | 'register' | 'sign-out' | 'profile' | 'profile-extras' | null;
+  readonly persistence: 'confirmed' | 'unconfirmed';
   readonly sessionRestored: boolean;
-  readonly recovery: "retry" | "restart";
-  readonly service: "available" | "unavailable" | "unchecked";
+  readonly recovery: 'retry' | 'restart';
+  readonly service: 'available' | 'unavailable' | 'unchecked';
   readonly message: string;
   readonly profileNamePending: boolean;
   readonly profileExtras: LocalProfileExtras | null;
-  readonly profileExtrasStatus: "none" | "ready" | "unavailable" | "uncertain";
+  readonly profileExtrasStatus: 'none' | 'ready' | 'unavailable' | 'uncertain';
   readonly capabilities: {
     signIn: boolean;
     register: boolean;
@@ -99,11 +90,7 @@ export type AccountCoordinator = {
   subscribe(listener: () => void): () => void;
   initialize(): Promise<AccessResult>;
   signIn(input: { email: string; password: string }): Promise<AccessResult>;
-  register(input: {
-    email: string;
-    password: string;
-    displayName: string;
-  }): Promise<AccessResult>;
+  register(input: { email: string; password: string; displayName: string }): Promise<AccessResult>;
   signOut(): Promise<AccessResult>;
   updateDisplayName(name: string): Promise<AccessResult>;
   saveProfileExtras(extras: LocalProfileExtras): Promise<AccessResult>;
@@ -118,6 +105,7 @@ export function createAccountCoordinator(options: {
   /** Reuse this exact object and its dependencies across Strict Mode/remounts. */
   runtime: object;
   scope: DataScope;
+  firebaseProjectId?: string;
   auth: AccountAuthAdapter | null;
   financial: FinancialAccountAccess;
   storageForFamily(family: DataFamily): FamilyLedgerStorage;

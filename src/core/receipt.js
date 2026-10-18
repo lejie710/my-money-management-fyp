@@ -4,25 +4,43 @@ const {
   parseMoney,
   transactionFromDraft,
   validateLedger,
-} = require("./model");
+} = require('./model');
 const MAX_OCR_WORDS = 3000,
   MAX_OCR_TEXT_LENGTH = 30000;
-const currencies = ["MYR", "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CNY"];
-const object = (value) =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+const currencies = ['MYR', 'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CNY'];
+const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 function freeze(value) {
-  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.values(value).forEach(freeze);
     Object.freeze(value);
   }
   return value;
 }
 function validateOcrResult(value) {
+  const vision = value?.provider === 'google-cloud-vision';
+  const confidence = (number) =>
+    number === null || (Number.isFinite(number) && number >= 0 && number <= 1);
+  const language = (value) =>
+    typeof value === 'string' && /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(value);
+  const languages = (rows) => {
+    if (
+      !Array.isArray(rows) ||
+      rows.length > 16 ||
+      rows.some((row) => !object(row) || !language(row.languageCode) || !confidence(row.confidence))
+    )
+      throw new Error('The OCR language metadata is invalid.');
+    return rows.map((row) => ({ languageCode: row.languageCode, confidence: row.confidence }));
+  };
   if (
     !object(value) ||
     value.version !== 1 ||
-    value.provider !== "windows-media-ocr" ||
-    value.language !== "en-US" ||
+    (!vision && value.provider !== 'windows-media-ocr') ||
+    (!vision && value.language !== 'en-US') ||
+    (vision &&
+      (!language(value.language) ||
+        value.geometry !== 'axis-aligned-envelope-with-original-polygon' ||
+        value.textAngle !== null ||
+        !confidence(value.pageConfidence))) ||
     !Number.isInteger(value.width) ||
     !Number.isInteger(value.height) ||
     value.width < 1 ||
@@ -40,18 +58,24 @@ function validateOcrResult(value) {
     !Array.isArray(value.words) ||
     value.words.length > MAX_OCR_WORDS
   )
-    throw new Error("The local OCR response is invalid or too large.");
+    throw new Error('The OCR response is invalid or too large.');
+  const detectedLanguages = vision ? languages(value.detectedLanguages) : null;
+  if (
+    vision &&
+    value.language !== (detectedLanguages.length === 1 ? detectedLanguages[0].languageCode : 'und')
+  )
+    throw new Error('The OCR language metadata is inconsistent.');
   let count = 0;
   const words = value.words.map((word) => {
     if (
       !object(word) ||
-      typeof word.text !== "string" ||
+      typeof word.text !== 'string' ||
       !word.text.trim() ||
       word.text.length > 128 ||
       /[\u0000-\u001f\u007f]/.test(word.text) ||
       !object(word.bounds)
     )
-      throw new Error("The OCR word data is invalid.");
+      throw new Error('The OCR word data is invalid.');
     const { x, y, width, height } = word.bounds;
     if (
       ![x, y, width, height].every(Number.isFinite) ||
@@ -62,11 +86,43 @@ function validateOcrResult(value) {
       x + width > value.width + 1 ||
       y + height > value.height + 1
     )
-      throw new Error("The OCR word geometry is invalid.");
+      throw new Error('The OCR word geometry is invalid.');
     count += word.text.length;
-    if (count > MAX_OCR_TEXT_LENGTH)
-      throw new Error("The receipt contains too much text.");
-    return { text: word.text.trim(), bounds: { x, y, width, height } };
+    if (count > MAX_OCR_TEXT_LENGTH) throw new Error('The receipt contains too much text.');
+    const output = { text: word.text.trim(), bounds: { x, y, width, height } };
+    if (vision) {
+      if (
+        !confidence(word.confidence) ||
+        !Array.isArray(word.polygon) ||
+        word.polygon.length !== 4 ||
+        word.polygon.some(
+          (point) =>
+            !object(point) ||
+            !Number.isFinite(point.x) ||
+            !Number.isFinite(point.y) ||
+            point.x < 0 ||
+            point.y < 0 ||
+            point.x > value.width + 1 ||
+            point.y > value.height + 1,
+        )
+      )
+        throw new Error('The OCR word metadata is invalid.');
+      const xs = word.polygon.map((point) => point.x),
+        ys = word.polygon.map((point) => point.y);
+      if (
+        Math.abs(Math.min(...xs) - x) > 0.000001 ||
+        Math.abs(Math.min(...ys) - y) > 0.000001 ||
+        Math.abs(Math.max(...xs) - x - width) > 0.000001 ||
+        Math.abs(Math.max(...ys) - y - height) > 0.000001
+      )
+        throw new Error('The OCR polygon and bounds disagree.');
+      Object.assign(output, {
+        confidence: word.confidence,
+        detectedLanguages: languages(word.detectedLanguages),
+        polygon: word.polygon.map((point) => ({ x: point.x, y: point.y })),
+      });
+    }
+    return output;
   });
   return freeze({
     version: 1,
@@ -77,6 +133,9 @@ function validateOcrResult(value) {
     elapsedMs: value.elapsedMs,
     textAngle: value.textAngle,
     words,
+    ...(vision
+      ? { detectedLanguages, pageConfidence: value.pageConfidence, geometry: value.geometry }
+      : {}),
   });
 }
 function groupOcrRows(value) {
@@ -96,10 +155,7 @@ function groupOcrRows(value) {
       const row = groups[i],
         delta = Math.abs(center - row.center);
       if (center - row.center > Math.max(b.height, row.height) * 2) break;
-      if (
-        delta <= Math.max(2, Math.min(b.height, row.height) * 0.55) &&
-        delta < distance
-      ) {
+      if (delta <= Math.max(2, Math.min(b.height, row.height) * 0.55) && delta < distance) {
         best = row;
         distance = delta;
       }
@@ -107,13 +163,9 @@ function groupOcrRows(value) {
     if (best) {
       best.words.push(word);
       best.center =
-        best.words.reduce(
-          (sum, w) => sum + w.bounds.y + w.bounds.height / 2,
-          0,
-        ) / best.words.length;
-      best.height =
-        best.words.reduce((sum, w) => sum + w.bounds.height, 0) /
+        best.words.reduce((sum, w) => sum + w.bounds.y + w.bounds.height / 2, 0) /
         best.words.length;
+      best.height = best.words.reduce((sum, w) => sum + w.bounds.height, 0) / best.words.length;
     } else groups.push({ center, height: b.height, words: [word] });
   }
   return freeze(
@@ -124,12 +176,10 @@ function groupOcrRows(value) {
           x = Math.min(...ordered.map((w) => w.bounds.x)),
           y = Math.min(...ordered.map((w) => w.bounds.y)),
           right = Math.max(...ordered.map((w) => w.bounds.x + w.bounds.width)),
-          bottom = Math.max(
-            ...ordered.map((w) => w.bounds.y + w.bounds.height),
-          );
+          bottom = Math.max(...ordered.map((w) => w.bounds.y + w.bounds.height));
         return {
           index,
-          text: ordered.map((w) => w.text).join(" "),
+          text: ordered.map((w) => w.text).join(' '),
           bounds: { x, y, width: right - x, height: bottom - y },
           words: ordered,
         };
@@ -137,7 +187,7 @@ function groupOcrRows(value) {
   );
 }
 function receiptCurrency(rows) {
-  const text = rows.map((row) => row.text).join("\n"),
+  const text = rows.map((row) => row.text).join('\n'),
     found = new Set(),
     issues = [];
   const patterns = {
@@ -155,17 +205,17 @@ function receiptCurrency(rows) {
     if (patterns[currency].test(text)) {
       found.add(currency);
       patterns[currency].lastIndex = 0;
-      rest = rest.replace(patterns[currency], " ");
+      rest = rest.replace(patterns[currency], ' ');
     }
   }
   const explicit = [...found];
-  if (rest.includes("$")) {
-    issues.push("The dollar symbol does not identify USD, AUD or CAD.");
-    for (const c of ["USD", "AUD", "CAD"]) found.add(c);
+  if (rest.includes('$')) {
+    issues.push('The dollar symbol does not identify USD, AUD or CAD.');
+    for (const c of ['USD', 'AUD', 'CAD']) found.add(c);
   }
   if (/[¥￥]/.test(rest)) {
-    issues.push("The yen/yuan symbol does not identify JPY or CNY.");
-    for (const c of ["JPY", "CNY"]) found.add(c);
+    issues.push('The yen/yuan symbol does not identify JPY or CNY.');
+    for (const c of ['JPY', 'CNY']) found.add(c);
   }
   const candidates = [...found],
     unsupported = [
@@ -179,14 +229,11 @@ function receiptCurrency(rows) {
     ];
   if (unsupported.length)
     issues.push(
-      `Unsupported currency code: ${unsupported.join(", ")}. Use manual entry in a matching currency.`,
+      `Unsupported currency code: ${unsupported.join(', ')}. Use manual entry in a matching currency.`,
     );
   if (!candidates.length)
-    issues.push(
-      "No supported currency was identified. Confirm the wallet currency explicitly.",
-    );
-  if (candidates.length > 1)
-    issues.push("More than one currency interpretation is present.");
+    issues.push('No supported currency was identified. Confirm the wallet currency explicitly.');
+  if (candidates.length > 1) issues.push('More than one currency interpretation is present.');
   return {
     suggested: candidates.length === 1 && !issues.length ? candidates[0] : null,
     candidates,
@@ -200,7 +247,7 @@ function dateCandidates(rows, today) {
     issues = [];
   let ambiguous = false;
   const add = (year, month, day) => {
-    const date = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     if (validDate(date)) {
       dates.add(date);
       return date;
@@ -208,9 +255,7 @@ function dateCandidates(rows, today) {
     return null;
   };
   for (const row of rows) {
-    const matches = row.text.matchAll(
-      /\b(\d{1,4})[\/.-](\d{1,2})[\/.-](\d{1,4})\b/g,
-    );
+    const matches = row.text.matchAll(/\b(\d{1,4})[\/.-](\d{1,2})[\/.-](\d{1,4})\b/g);
     for (const match of matches) {
       const [a, b, c] = match.slice(1),
         before = dates.size;
@@ -219,29 +264,23 @@ function dateCandidates(rows, today) {
         const first = add(Number(c), Number(b), Number(a)),
           second = add(Number(c), Number(a), Number(b));
         if (first && second && first !== second) ambiguous = true;
-      } else issues.push("A two-digit year needs manual confirmation.");
+      } else issues.push('A two-digit year needs manual confirmation.');
       if (
         dates.size === before &&
         a.length === 4 &&
-        !validDate(`${a}-${b.padStart(2, "0")}-${c.padStart(2, "0")}`)
+        !validDate(`${a}-${b.padStart(2, '0')}-${c.padStart(2, '0')}`)
       )
-        issues.push("An invalid calendar date was recognized.");
+        issues.push('An invalid calendar date was recognized.');
     }
   }
   const candidates = [...dates].sort();
-  if (ambiguous)
-    issues.push("Day and month order is ambiguous. Choose the intended date.");
-  if (candidates.length > 1)
-    issues.push("Several receipt dates were recognized.");
+  if (ambiguous) issues.push('Day and month order is ambiguous. Choose the intended date.');
+  if (candidates.length > 1) issues.push('Several receipt dates were recognized.');
   if (candidates.some((date) => date > today))
-    issues.push(
-      "A recognized date is later than today. Check it before using it.",
-    );
-  if (!candidates.length)
-    issues.push("No unambiguous calendar date was identified.");
+    issues.push('A recognized date is later than today. Check it before using it.');
+  if (!candidates.length) issues.push('No unambiguous calendar date was identified.');
   return {
-    suggested:
-      candidates.length === 1 && candidates[0] <= today ? candidates[0] : null,
+    suggested: candidates.length === 1 && candidates[0] <= today ? candidates[0] : null,
     candidates,
     issues: [...new Set(issues)],
   };
@@ -267,7 +306,7 @@ function totals(rows, currency) {
     const rowCurrency = receiptCurrency([row]);
     if (rowCurrency.unsupported.length || rowCurrency.explicit.length > 1) {
       issues.push(
-        "This total row has unsupported or mixed currency markers. Check its currency manually.",
+        'This total row has unsupported or mixed currency markers. Check its currency manually.',
       );
       continue;
     }
@@ -275,35 +314,26 @@ function totals(rows, currency) {
     const matches = [...trailing.matchAll(/[-+]?\d+(?:[,.]\d+)*/g)];
     for (const match of matches) {
       let text = match[0];
-      const prefix = /([A-Za-z]+)$/
-        .exec(trailing.slice(0, match.index))?.[1]
-        ?.toUpperCase();
+      const prefix = /([A-Za-z]+)$/.exec(trailing.slice(0, match.index))?.[1]?.toUpperCase();
       const suffix = trailing.slice(match.index + text.length);
       const suffixCode = /^([A-Za-z]+)/.exec(suffix)?.[1]?.toUpperCase();
       if (
-        (prefix && ![...currencies, "RM", "RMB"].includes(prefix)) ||
-        (suffixCode && ![...currencies, "RM", "RMB"].includes(suffixCode))
+        (prefix && ![...currencies, 'RM', 'RMB'].includes(prefix)) ||
+        (suffixCode && ![...currencies, 'RM', 'RMB'].includes(suffixCode))
       ) {
-        issues.push(
-          "Unreadable characters next to a total need manual correction.",
-        );
+        issues.push('Unreadable characters next to a total need manual correction.');
         continue;
       }
-      if (text.startsWith("-") || /\([^)]*\d[^)]*\)/.test(trailing)) {
-        issues.push("A refund or negative total needs manual entry.");
+      if (text.startsWith('-') || /\([^)]*\d[^)]*\)/.test(trailing)) {
+        issues.push('A refund or negative total needs manual entry.');
         continue;
       }
-      if (
-        text.includes(",") &&
-        !/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(text)
-      ) {
-        issues.push(
-          "A comma-decimal or ambiguous amount format needs manual entry.",
-        );
+      if (text.includes(',') && !/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(text)) {
+        issues.push('A comma-decimal or ambiguous amount format needs manual entry.');
         continue;
       }
       try {
-        const amountMinor = parseMoney(text.replace(/,/g, ""), amountCurrency);
+        const amountMinor = parseMoney(text.replace(/,/g, ''), amountCurrency);
         candidates.push({
           rowIndex: row.index,
           text: row.text,
@@ -311,22 +341,16 @@ function totals(rows, currency) {
           currency: amountCurrency,
         });
       } catch {
-        issues.push(
-          "A recognized total has an invalid amount or exceeds the wallet limit.",
-        );
+        issues.push('A recognized total has an invalid amount or exceeds the wallet limit.');
       }
     }
     if (!matches.length)
-      issues.push(
-        "A total label was found without a readable amount on the same row.",
-      );
+      issues.push('A total label was found without a readable amount on the same row.');
   }
   const unique = [...new Set(candidates.map((c) => c.amountMinor))];
-  if (!unique.length) issues.push("No usable labelled total was identified.");
+  if (!unique.length) issues.push('No usable labelled total was identified.');
   if (unique.length > 1)
-    issues.push(
-      "Several different labelled totals were recognized. Choose the correct amount.",
-    );
+    issues.push('Several different labelled totals were recognized. Choose the correct amount.');
   return {
     suggestedMinor: unique.length === 1 && !issues.length ? unique[0] : null,
     candidates,
@@ -335,15 +359,14 @@ function totals(rows, currency) {
 }
 function parseReceipt(value, { walletCurrency, today }) {
   currencyInfo(walletCurrency);
-  if (!validDate(today))
-    throw new Error("A valid current date is required for receipt review.");
+  if (!validDate(today)) throw new Error('A valid current date is required for receipt review.');
   const ocr = validateOcrResult(value),
     rows = groupOcrRows(ocr),
     currency = receiptCurrency(rows),
     date = dateCandidates(rows, today),
     total = totals(rows, currency.suggested ?? walletCurrency),
     warnings = [
-      "OCR suggestions can be wrong. Check every field against the image before continuing.",
+      'OCR suggestions can be wrong. Check every field against the image before continuing.',
     ];
   const header = rows.find(
     (row) =>
@@ -356,33 +379,36 @@ function parseReceipt(value, { walletCurrency, today }) {
     suggested: header && header.text.length <= 80 ? header.text : null,
     issues:
       header && header.text.length > 80
-        ? [
-            "The proposed vendor name is too long. Enter a shorter transaction title.",
-          ]
+        ? ['The proposed vendor name is too long. Enter a shorter transaction title.']
         : header
           ? []
-          : ["No vendor/title suggestion was identified."],
+          : ['No vendor/title suggestion was identified.'],
   };
   if (currency.suggested && currency.suggested !== walletCurrency) {
     total.suggestedMinor = null;
     warnings.push(
-      "The receipt currency differs from this wallet. No currency conversion has been performed.",
+      'The receipt currency differs from this wallet. No currency conversion has been performed.',
     );
   }
   if (!currency.suggested) total.suggestedMinor = null;
   if (ocr.textAngle !== null && Math.abs(ocr.textAngle) > 5)
+    warnings.push('The receipt is rotated or skewed. Row matching may be unreliable.');
+  if (ocr.provider === 'google-cloud-vision') {
     warnings.push(
-      "The receipt is rotated or skewed. Row matching may be unreliable.",
+      'Recognized by Google Cloud Vision. Suggestions still require your review; confidence scores do not prove the amount or date is correct.',
     );
+    if (!/^en(?:-|$)/i.test(ocr.language))
+      warnings.push(
+        'Recognition includes an unknown or non-English language. Automatic receipt-field suggestions may be incomplete.',
+      );
+  }
   if (!rows.length)
-    warnings.push(
-      "No text was recognized. Retake the image or enter the transaction manually.",
-    );
+    warnings.push('No text was recognized. Retake the image or enter the transaction manually.');
   return freeze({
     version: 1,
-    provider: "windows-media-ocr",
+    provider: ocr.provider,
     reviewRequired: true,
-    status: rows.length ? "review" : "empty",
+    status: rows.length ? 'review' : 'empty',
     rows,
     title,
     date,
@@ -396,39 +422,32 @@ function reviewedReceiptTransaction(ledger, candidate, review, id) {
   if (
     !object(candidate) ||
     candidate.version !== 1 ||
-    candidate.provider !== "windows-media-ocr" ||
+    !['windows-media-ocr', 'google-cloud-vision'].includes(candidate.provider) ||
     candidate.reviewRequired !== true ||
     !object(review) ||
     review.confirmed !== true
   )
-    throw new Error(
-      "Review the recognized fields and explicitly confirm them before continuing.",
-    );
+    throw new Error('Review the recognized fields and explicitly confirm them before continuing.');
   if (review.currency !== ledger.wallet.currency)
-    throw new Error(
-      "Use this wallet currency. No receipt currency conversion is available.",
-    );
+    throw new Error('Use this wallet currency. No receipt currency conversion is available.');
   if (candidate.currency?.unsupported?.length)
     throw new Error(
-      "This receipt includes an unsupported currency. Use an explicitly reviewed manual transaction instead.",
+      'This receipt includes an unsupported currency. Use an explicitly reviewed manual transaction instead.',
     );
   if (
     candidate.currency?.explicit?.length &&
     !candidate.currency.explicit.includes(ledger.wallet.currency)
   )
     throw new Error(
-      "The explicit receipt currency markers do not match this wallet. No currency conversion is available.",
+      'The explicit receipt currency markers do not match this wallet. No currency conversion is available.',
     );
-  if (
-    candidate.currency?.suggested &&
-    candidate.currency.suggested !== ledger.wallet.currency
-  )
+  if (candidate.currency?.suggested && candidate.currency.suggested !== ledger.wallet.currency)
     throw new Error(
-      "This receipt uses another currency. It cannot be relabelled as the wallet currency.",
+      'This receipt uses another currency. It cannot be relabelled as the wallet currency.',
     );
   return transactionFromDraft(
     {
-      type: "expense",
+      type: 'expense',
       title: review.title,
       date: review.date,
       amount: review.amount,

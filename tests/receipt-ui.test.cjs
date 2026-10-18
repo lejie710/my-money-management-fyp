@@ -499,3 +499,84 @@ test('root owner/currentness guard rejects recognition completion even before th
   f.host.unmount();
   await flush();
 });
+
+function cloudOcr() {
+  const value = ocr();
+  return {
+    ...value,
+    provider: 'google-cloud-vision',
+    detectedLanguages: [{ languageCode: 'en-US', confidence: null }],
+    pageConfidence: null,
+    geometry: 'axis-aligned-envelope-with-original-polygon',
+    words: value.words.map((word) => {
+      const { x, y, width, height } = word.bounds;
+      return {
+        ...word,
+        confidence: null,
+        detectedLanguages: [],
+        polygon: [
+          { x, y },
+          { x: x + width, y },
+          { x: x + width, y: y + height },
+          { x, y: y + height },
+        ],
+      };
+    }),
+  };
+}
+const cloudProvider = {
+  engine: 'google-cloud-vision',
+  processing: 'cloud',
+  maxImageBytes: 6291456,
+};
+
+test('cloud recognition still requires chosen category and explicit confirmation before ordinary expense save', async () => {
+  const f = fixture({ recognize: async () => cloudOcr() });
+  f.binding.provider = cloudProvider;
+  await f.render().select('library');
+  assert.equal(f.calls.recognize, 0);
+  await f.render().recognize();
+  assert.equal(f.render().candidate.provider, 'google-cloud-vision');
+  assert.equal(f.render().review.confirmed, false);
+  assert.equal(f.calls.saved.length, 0);
+  f.render().update('categoryId', 'expense-food');
+  f.render().setConfirmed(true);
+  await f.render().confirm();
+  assert.equal(f.calls.saved.length, 1);
+  assert.equal(f.calls.saved[0].transactions[0].amountMinor, 1250);
+  assert.equal(f.calls.saved[0].transactions[0].type, 'expense');
+  f.host.unmount();
+});
+
+test('changing the OCR provider retires its image/review session and ignores the old provider response', async () => {
+  const pending = deferred(),
+    f = fixture({ recognize: () => pending.promise });
+  f.binding.provider = cloudProvider;
+  await f.render().select('library');
+  const recognizing = f.render().recognize();
+  await flush();
+  f.binding.provider = {
+    engine: 'windows-media-ocr',
+    processing: 'local',
+    maxImageBytes: 10485760,
+  };
+  f.render();
+  assert.equal(f.calls.signal.aborted, true);
+  pending.resolve(cloudOcr());
+  await recognizing;
+  assert.equal(f.render().phase, 'empty');
+  assert.equal(f.render().candidate, null);
+  assert.equal(f.calls.saved.length, 0);
+  f.host.unmount();
+});
+
+test('a configured cloud capture refuses local-provider output without producing review guesses', async () => {
+  const f = fixture();
+  f.binding.provider = cloudProvider;
+  await f.render().select('library');
+  await f.render().recognize();
+  assert.equal(f.render().candidate, null);
+  assert.match(f.render().error, /provider changed/);
+  assert.equal(f.calls.saved.length, 0);
+  f.host.unmount();
+});

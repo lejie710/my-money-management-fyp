@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createFirebaseAuthAdapter, CONFIG, EMULATOR_URL } = require('../src/accounts/firebaseAdapter');
+const {
+  createFirebaseAuthAdapter,
+  CONFIG,
+  EMULATOR_URL,
+} = require('../src/accounts/firebaseAdapter');
 const { encodeDataScope } = require('../src/accounts/identity');
 const deferred = () => {
   let resolve;
@@ -30,9 +34,14 @@ function fixture(options = {}) {
     values = new Map(),
     apps = [],
     scope = { kind: 'test', namespace: options.namespace ?? 'firebase-adapter-unit' };
-  const appName = `mymoney-local-${encodeURIComponent(encodeDataScope(scope))}`;
-  const sessionKey = `firebase:authUser:${CONFIG.apiKey}:${appName}`;
-  const storedKey = `@mymoney/auth/v1/${encodeURIComponent(encodeDataScope(scope))}/${encodeURIComponent(sessionKey)}`;
+  const cloud = options.configuration;
+  const appName = cloud
+    ? `mymoney-cloud-${cloud.firebase.projectId}-${encodeURIComponent(encodeDataScope(scope))}`
+    : `mymoney-local-${encodeURIComponent(encodeDataScope(scope))}`;
+  const sessionKey = `firebase:authUser:${cloud?.firebase.apiKey ?? CONFIG.apiKey}:${appName}`;
+  const storedKey = cloud
+    ? `@mymoney/auth-cloud/v1/${cloud.firebase.projectId}/${encodeURIComponent(encodeDataScope(scope))}/${encodeURIComponent(sessionKey)}`
+    : `@mymoney/auth/v1/${encodeURIComponent(encodeDataScope(scope))}/${encodeURIComponent(sessionKey)}`;
   if (options.initial !== undefined) values.set(storedKey, options.initial);
   const storage = {
     async getItem(key) {
@@ -82,7 +91,7 @@ function fixture(options = {}) {
     },
     initializeAuth() {
       events.push('initializeAuth');
-      auth = { currentUser: null };
+      auth = { currentUser: null, ...(options.tenantId ? { tenantId: options.tenantId } : {}) };
       const ready = Promise.resolve().then(async () => {
         try {
           if (!options.memoryFallback) {
@@ -103,9 +112,16 @@ function fixture(options = {}) {
     },
     connectAuthEmulator(_auth, url) {
       events.push('connectEmulator');
-      assert.equal(url, EMULATOR_URL);
+      assert.equal(
+        url,
+        cloud?.emulators ? `http://127.0.0.1:${cloud.emulators.auth}` : EMULATOR_URL,
+      );
       if (options.connectError) throw Error('Failed setup');
-      _auth.emulatorConfig = { host: '127.0.0.1', port: 9099, protocol: 'http' };
+      _auth.emulatorConfig = {
+        host: '127.0.0.1',
+        port: cloud?.emulators?.auth ?? 9099,
+        protocol: 'http',
+      };
     },
     beforeAuthStateChanged(_auth, callback, abort) {
       events.push('beforeAuthStateChanged');
@@ -150,6 +166,7 @@ function fixture(options = {}) {
     scope,
     storage,
     sdk,
+    configuration: options.configuration,
     timeoutMs: options.timeoutMs ?? 1000,
     fetchImpl: options.fetchImpl,
   });
@@ -370,4 +387,73 @@ test('an old reset session cannot act after an account mutation changes its bind
   assert.equal((await reset.request('a@example.test')).ok, false);
   assert.equal(fetched, 0);
   assert.equal(f.events.includes('reset-send'), false);
+});
+
+function cloudConfiguration(projectId = 'project-alpha', mode = 'hosted') {
+  return {
+    mode,
+    firebase: {
+      projectId,
+      apiKey: 'synthetic-client-config',
+      appId: 'synthetic-app',
+      authDomain: projectId + '.firebaseapp.com',
+      storageBucket: projectId + '.appspot.com',
+    },
+    ...(mode === 'emulator'
+      ? { emulators: { auth: 19099, firestore: 18080, storage: 19199 } }
+      : {}),
+  };
+}
+test('hosted Auth preserves guarded persistence and uses separate project-bound SDK apps and session stores', async () => {
+  const a = fixture({ configuration: cloudConfiguration() }),
+    b = fixture({ configuration: cloudConfiguration('project-bravo') });
+  for (const f of [a, b]) {
+    await f.adapter.initialize(f.beforeChange);
+    assert.equal(f.events.includes('connectEmulator'), false);
+    await f.adapter.signIn({ email: 'a@example.test', password: 'synthetic' });
+    assert.equal((await f.adapter.confirmIdentity()).persistence, 'confirmed');
+  }
+  assert.equal(
+    (await a.adapter.confirmIdentity()).user.uid,
+    (await b.adapter.confirmIdentity()).user.uid,
+  );
+  assert.notEqual(a.storedKey, b.storedKey);
+  assert.ok(a.values.has(a.storedKey));
+  assert.ok(b.values.has(b.storedKey));
+  assert.equal(a.adapter.getSdkContext().configuration.firebase.projectId, 'project-alpha');
+});
+test('same runtime refuses project changes before returning another adapter', async () => {
+  const f = fixture({ configuration: cloudConfiguration() });
+  await f.adapter.initialize(f.beforeChange);
+  assert.throws(
+    () =>
+      createFirebaseAuthAdapter({
+        runtime: f.runtime,
+        scope: f.scope,
+        storage: f.storage,
+        sdk: f.sdk,
+        configuration: cloudConfiguration('project-bravo'),
+      }),
+    /another storage scope|another/,
+  );
+});
+test('cloud demonstration connects the explicitly configured loopback Auth port and rejects tenancy', async () => {
+  const f = fixture({ configuration: cloudConfiguration('demo-money-backup', 'emulator') });
+  assert.equal((await f.adapter.initialize(f.beforeChange)).persistence, 'confirmed');
+  assert.equal(f.events.includes('connectEmulator'), true);
+  assert.equal(f.auth.emulatorConfig.port, 19099);
+  const tenant = fixture({ configuration: cloudConfiguration(), tenantId: 'unsupported-tenant' });
+  assert.equal((await tenant.adapter.initialize(tenant.beforeChange)).persistence, 'unconfirmed');
+  assert.throws(() => tenant.adapter.getSdkContext());
+});
+test('hosted reset is an explicit request with no emulator inbox and no wallet/session mutation', async () => {
+  const f = fixture({ configuration: cloudConfiguration() });
+  await f.adapter.initialize(f.beforeChange);
+  await f.adapter.signIn({ email: 'a@example.test', password: 'synthetic' });
+  const before = new Map(f.values);
+  assert.throws(() => f.adapter.createResetSession(), /Hosted accounts/);
+  await f.adapter.requestPasswordReset('a@example.test');
+  assert.ok(f.events.includes('reset-send'));
+  assert.deepEqual(f.values, before);
+  assert.equal((await f.adapter.confirmIdentity()).user.uid, 'uid-A');
 });

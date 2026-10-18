@@ -1,5 +1,6 @@
-const { buildAssistantRequest, assessAnswer, MODEL_ID } = require('./grounding');
+const { buildAssistantRequest, assessAnswer } = require('./grounding');
 const { AssistantError } = require('./protocol');
+const { assistantProvider, validateAssistantResponse } = require('./providerResponse');
 const ASSISTANT_WAIT_MS = 125000;
 
 // One in-memory UI session; no storage, financial mutation, or provider start code.
@@ -9,6 +10,7 @@ function createAssistantSession({
   context,
   isCurrent,
   transport,
+  expectedProvider,
   setTimer = setTimeout,
   clearTimer = clearTimeout,
   createAbort = () => new AbortController(),
@@ -22,6 +24,7 @@ function createAssistantSession({
     typeof transport !== 'function'
   )
     throw new Error('Open an active assistant session.');
+  const provider = assistantProvider(expectedProvider);
   // Validate the context at construction; the fixed probe text is never sent.
   buildAssistantRequest(context, 'Explain the selected facts.');
   let active = null,
@@ -72,8 +75,11 @@ function createAssistantSession({
             if (active !== pending) return;
             if (!current() || requestGeneration !== generation)
               return pending.settle({ status: 'stale' });
-            if (!response || response.model !== MODEL_ID || response.finishReason !== 'stop')
+            try {
+              validateAssistantResponse(response, provider, expectedProvider === undefined);
+            } catch {
               return pending.settle({ status: 'invalid-provider-response' });
+            }
             const assessed = assessAnswer(context, response.content);
             pending.settle(
               assessed.accepted

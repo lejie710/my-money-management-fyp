@@ -23,6 +23,8 @@ type Session = {
   ownerIncarnationId: string;
   capture: ReceiptUiBinding['capture'];
   photos: ReceiptUiBinding['photos'];
+  client: ReceiptUiBinding['client'];
+  providerKey: string;
   active: boolean;
   revision: number;
   saving: boolean;
@@ -61,6 +63,9 @@ export function useReceiptCapture({
   const renderOwner = ledger.wallet.incarnationId;
   const renderCapture = binding.capture;
   const renderPhotos = binding.photos;
+  const providerKey = JSON.stringify(binding.provider ?? null);
+  const providerRef = useRef({ key: providerKey, client: binding.client });
+  providerRef.current = { key: providerKey, client: binding.client };
   const [phase, setPhase] = useState<Phase>('empty');
   const [image, setImage] = useState<ReceiptImageSelection | null>(null);
   const [candidate, setCandidate] = useState<ReceiptCandidate | null>(null);
@@ -116,6 +121,8 @@ export function useReceiptCapture({
       ownerIncarnationId: ledger.wallet.incarnationId,
       capture: binding.capture,
       photos: binding.photos,
+      client: binding.client,
+      providerKey,
       active: true,
       revision: 0,
       saving: false,
@@ -144,13 +151,22 @@ export function useReceiptCapture({
       detach?.();
       void closeDraft();
     };
-  }, [binding.sessionKey, binding.capture, binding.photos, ledger.wallet.incarnationId]);
+  }, [
+    binding.sessionKey,
+    binding.capture,
+    binding.photos,
+    binding.client,
+    providerKey,
+    ledger.wallet.incarnationId,
+  ]);
   const valid = (session: Session, revision: number) =>
     session.active &&
     sessionRef.current === session &&
     session.revision === revision &&
     keyRef.current === session.key &&
     ownerRef.current === session.ownerIncarnationId &&
+    providerRef.current.key === session.providerKey &&
+    providerRef.current.client === session.client &&
     (binding.isCurrent?.() ?? true);
   const currentSession = () => {
     const session = sessionRef.current;
@@ -159,6 +175,8 @@ export function useReceiptCapture({
       session.ownerIncarnationId === renderOwner &&
       session.capture === renderCapture &&
       session.photos === renderPhotos &&
+      session.providerKey === providerKey &&
+      session.client === binding.client &&
       keyRef.current === renderKey &&
       ownerRef.current === renderOwner &&
       (binding.isCurrent?.() ?? true)
@@ -227,7 +245,7 @@ export function useReceiptCapture({
       return;
     if (!binding.client) {
       setError(
-        'The Windows OCR companion is not connected. Connect it first, or enter the transaction manually.',
+        'Receipt recognition is not connected. Pair the selected provider first, or enter the transaction manually.',
       );
       return;
     }
@@ -247,6 +265,8 @@ export function useReceiptCapture({
         signal: abort.signal,
       });
       if (!valid(session, revision) || abort.signal.aborted) return;
+      if (binding.provider && recognized.provider !== binding.provider.engine)
+        throw new Error('The receipt provider changed. Reopen capture after pairing again.');
       const parsed = parseReceipt(recognized, {
         walletCurrency: ledger.wallet.currency,
         today: binding.today,
@@ -305,7 +325,11 @@ export function useReceiptCapture({
           ? 'selected'
           : 'empty',
     );
-    setMessage('Stopped waiting for recognition. No transaction was created.');
+    setMessage(
+      binding.provider?.processing === 'cloud'
+        ? 'Stopped waiting for recognition. Google Cloud Vision may already have processed the image; cancellation does not guarantee charges are avoided. No transaction was created.'
+        : 'Stopped waiting for recognition. No transaction was created.',
+    );
     setError('');
   };
   const update = (field: 'title' | 'date' | 'amount' | 'categoryId', value: string) => {

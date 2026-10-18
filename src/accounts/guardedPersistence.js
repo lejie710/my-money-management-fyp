@@ -4,7 +4,7 @@ function createGuardedAuthPersistence(adapter, { prefix, sessionKey }) {
     !adapter ||
     !['getItem', 'setItem', 'removeItem'].every((key) => typeof adapter[key] === 'function') ||
     typeof prefix !== 'string' ||
-    !prefix.startsWith('@mymoney/auth/v1/') ||
+    !(prefix.startsWith('@mymoney/auth/v1/') || prefix.startsWith('@mymoney/auth-cloud/v1/')) ||
     !prefix.endsWith('/') ||
     typeof sessionKey !== 'string' ||
     !sessionKey.startsWith('firebase:authUser:')

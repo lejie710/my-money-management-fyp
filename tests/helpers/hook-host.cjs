@@ -43,6 +43,12 @@ function createHookHost() {
           slots[index] = { deps, callback, cleanup: callback() };
         });
     },
+    useMemo(factory, deps) {
+      const index = cursor++,
+        previous = slots[index];
+      if (!same(previous?.deps, deps)) slots[index] = { deps, value: factory() };
+      return slots[index].value;
+    },
     useCallback(callback, deps) {
       const index = cursor++,
         previous = slots[index];
