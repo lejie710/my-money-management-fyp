@@ -9,6 +9,8 @@ export type ConfirmedIdentity = {
   service: 'available' | 'unavailable' | 'unchecked';
   mutationPending: boolean;
   recovery?: 'retry' | 'restart';
+  sessionRetirementToken?: string | null;
+  sessionRetired?: boolean;
 };
 /** A stable root-owned SDK binding; never returns tokens, passwords, raw User or session bytes. */
 export interface AccountAuthAdapter {
@@ -20,6 +22,7 @@ export interface AccountAuthAdapter {
   signIn(input: { email: string; password: string }): Promise<void>;
   register(input: { email: string; password: string }): Promise<void>;
   signOut(): Promise<void>;
+  retireSavedSession?(token: string): Promise<{ retired: boolean }>;
   updateDisplayName(expectedUid: string, name: string): Promise<void>;
 }
 export type AccessResult = { ok: boolean; pending: boolean; message: string };
@@ -67,10 +70,13 @@ export type AccessView = {
   readonly family: DataFamily | null;
   readonly user: AccountUser | null;
   readonly activeOwnerToken: string | null;
-  readonly operation: 'sign-in' | 'register' | 'sign-out' | 'profile' | 'profile-extras' | null;
+  readonly operation:
+    'sign-in' | 'register' | 'sign-out' | 'profile' | 'profile-extras' | 'retire-session' | null;
   readonly persistence: 'confirmed' | 'unconfirmed';
   readonly sessionRestored: boolean;
   readonly recovery: 'retry' | 'restart';
+  readonly sessionRetirementToken?: string | null;
+  readonly sessionRetired?: boolean;
   readonly service: 'available' | 'unavailable' | 'unchecked';
   readonly message: string;
   readonly profileNamePending: boolean;
@@ -83,6 +89,7 @@ export type AccessView = {
     editProfile: boolean;
     saveProfileExtras: boolean;
     retry: boolean;
+    retireSession?: boolean;
   };
 };
 export type AccountCoordinator = {
@@ -92,6 +99,7 @@ export type AccountCoordinator = {
   signIn(input: { email: string; password: string }): Promise<AccessResult>;
   register(input: { email: string; password: string; displayName: string }): Promise<AccessResult>;
   signOut(): Promise<AccessResult>;
+  retireSavedSession(token: string): Promise<AccessResult>;
   updateDisplayName(name: string): Promise<AccessResult>;
   saveProfileExtras(extras: LocalProfileExtras): Promise<AccessResult>;
   /** Root calls only after a same-family financial commit and required owner activation are confirmed. No writes or scheduling. */

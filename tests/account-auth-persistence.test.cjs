@@ -143,3 +143,178 @@ test('serialized writes compare opaque bytes without interpreting fields or norm
   ]);
   assert.equal(await f.guard.confirm(second), true);
 });
+
+async function blockedSession(f) {
+  await f.guard.preflight();
+  await available(f.guard);
+  await assert.rejects(f.guard.storage.removeItem(sessionKey));
+  const token = f.guard.getState().sessionRetirementToken;
+  assert.match(token, /^saved-sign-in-[1-9][0-9]*$/);
+  return token;
+}
+
+test('known hydration refusal offers a ticket but performs no removal until explicitly confirmed', async () => {
+  const f = fixture(),
+    token = await blockedSession(f);
+  assert.equal(f.values.get(storedKey), original);
+  assert.equal(f.calls.filter(([kind, key]) => kind === 'remove' && key === storedKey).length, 0);
+  assert.equal(f.guard.getState().sessionRetired, false);
+  assert.equal(f.guard.getState().sessionRetirementToken, token);
+  // Reading the offer, cancelling a UI choice or retrying confirmation does not delete anything.
+  assert.equal(await f.guard.confirm(null), false);
+  assert.equal(f.values.get(storedKey), original);
+});
+
+test('explicit retirement removes only its exact auth record and permanently rejects late SDK writes', async () => {
+  const f = fixture(),
+    token = await blockedSession(f);
+  for (const [key, value] of [
+    ['wallet-A', 'wallet bytes'],
+    ['guest-wallet', 'guest bytes'],
+    ['profile-A', 'profile bytes'],
+    ['photos-A', 'photo index'],
+    ['@mymoney/auth/v1/other/auth', 'other session'],
+  ])
+    f.values.set(key, value);
+  const before = new Map(f.values);
+  assert.equal(await f.guard.retireSavedSession(token), true);
+  before.delete(storedKey);
+  assert.deepEqual(f.values, before);
+  assert.equal(f.guard.getState().sessionRetired, true);
+  assert.equal(f.guard.getState().blocked, true);
+  assert.equal(f.guard.getState().sessionRetirementToken, null);
+  await assert.rejects(
+    f.guard.storage.setItem(sessionKey, JSON.stringify({ opaque: 'late SDK user' })),
+  );
+  await assert.rejects(f.guard.retireSavedSession(token));
+  assert.equal(await f.guard.finishInitialization(null), false);
+  assert.deepEqual(f.values, before);
+  assert.equal(f.calls.filter(([kind, key]) => kind === 'remove' && key === storedKey).length, 1);
+});
+
+test('no-session and ordinary ready guards have no retirement capability', async () => {
+  for (const initial of [null, original]) {
+    const f = fixture(initial);
+    await f.guard.preflight();
+    await available(f.guard);
+    await f.guard.finishInitialization(initial);
+    assert.equal(f.guard.getState().sessionRetirementToken, null);
+    await assert.rejects(f.guard.retireSavedSession('saved-sign-in-1'));
+    assert.equal(f.values.get(storedKey) ?? null, initial);
+  }
+});
+
+test('stale or changed session retirement refuses deletion and never consumes another record', async () => {
+  const f = fixture(),
+    token = await blockedSession(f);
+  await assert.rejects(f.guard.retireSavedSession(token + '0'));
+  assert.equal(f.values.get(storedKey), original);
+  const changed = JSON.stringify({ opaque: 'another known session' });
+  f.values.set(storedKey, changed);
+  await assert.rejects(f.guard.retireSavedSession(token));
+  assert.equal(f.values.get(storedKey), changed);
+  assert.equal(f.guard.getState().sessionRetirementToken, null);
+  assert.equal(f.guard.getState().sessionRetired, false);
+  assert.equal(f.calls.filter(([kind, key]) => kind === 'remove' && key === storedKey).length, 0);
+});
+
+test('retirement read/probe failures do not erase a retained session', async () => {
+  for (const kind of ['session-read', 'probe-write', 'unresolved-probe']) {
+    const faults = {},
+      f = fixture(original, faults),
+      token = await blockedSession(f);
+    if (kind === 'session-read') faults.read = (key) => key === storedKey;
+    if (kind === 'probe-write') faults.beforeSet = (key) => key.endsWith('__fyp_retirement_probe');
+    if (kind === 'unresolved-probe') f.values.set(prefix + '__fyp_retirement_probe', 'unconfirmed');
+    await assert.rejects(f.guard.retireSavedSession(token));
+    assert.equal(f.values.get(storedKey), original);
+    assert.equal(f.guard.getState().sessionRetired, false);
+    assert.equal(f.guard.getState().sessionRetirementToken, null);
+    assert.equal(
+      f.calls.filter(([operation, key]) => operation === 'remove' && key === storedKey).length,
+      0,
+    );
+  }
+});
+
+test('retirement resolves remove-then-throw only by exact absence readback', async () => {
+  const f = fixture(original, { afterRemove: (key) => key === storedKey }),
+    token = await blockedSession(f);
+  assert.equal(await f.guard.retireSavedSession(token), true);
+  assert.equal(f.values.has(storedKey), false);
+  assert.equal(f.guard.getState().sessionRetired, true);
+});
+
+test('failed removal and unknown removal readback stay blocked without retrying or restoring bytes', async () => {
+  const unchanged = fixture(original, { beforeRemove: (key) => key === storedKey }),
+    first = await blockedSession(unchanged);
+  await assert.rejects(unchanged.guard.retireSavedSession(first));
+  assert.equal(unchanged.values.get(storedKey), original);
+  assert.equal(unchanged.guard.getState().sessionRetired, false);
+  await assert.rejects(unchanged.guard.storage.setItem(sessionKey, '{}'));
+  let failedRead = false;
+  const uncertain = fixture(original, {
+      read: (key) => failedRead && key === storedKey,
+      afterRemove: (key) => {
+        if (key === storedKey) failedRead = true;
+        return false;
+      },
+    }),
+    second = await blockedSession(uncertain);
+  await assert.rejects(uncertain.guard.retireSavedSession(second));
+  assert.equal(uncertain.values.has(storedKey), false);
+  assert.equal(uncertain.guard.getState().sessionRetired, false);
+  assert.equal(uncertain.guard.getState().sessionRetirementToken, null);
+  failedRead = false;
+  await assert.rejects(uncertain.guard.retireSavedSession(second));
+  assert.equal(await uncertain.guard.confirm(null), false);
+});
+
+test('malformed or unreadable initial sessions and unavailable SDK storage never offer retirement', async () => {
+  for (const options of [
+    { initial: 'not json' },
+    { initial: original, faults: { read: () => true } },
+    { initial: original, faults: { beforeSet: (key) => key.endsWith('__sak') } },
+  ]) {
+    const f = fixture(options.initial, options.faults);
+    try {
+      await f.guard.preflight();
+      await available(f.guard);
+    } catch {}
+    try {
+      await f.guard.storage.removeItem(sessionKey);
+    } catch {}
+    assert.equal(f.guard.getState().sessionRetirementToken, null);
+    await assert.rejects(f.guard.retireSavedSession('saved-sign-in-1'));
+    assert.equal(f.values.get(storedKey), options.initial);
+  }
+});
+
+test('a fresh guard reconciles only a known retained probe after storage recovers', async () => {
+  for (const failure of ['readback', 'removal']) {
+    const probeKey = prefix + '__fyp_retirement_probe';
+    let failed = true;
+    const faults = {};
+    const f = fixture(original, faults);
+    const token = await blockedSession(f);
+    if (failure === 'readback')
+      faults.read = (key) => failed && key === probeKey && f.values.has(probeKey);
+    else faults.beforeRemove = (key) => failed && key === probeKey;
+    await assert.rejects(f.guard.retireSavedSession(token));
+    assert.equal(f.values.get(probeKey), '1');
+    assert.equal(f.values.get(storedKey), original);
+    assert.equal(f.guard.getState().sessionRetired, false);
+    failed = false;
+    const nextGuard = createGuardedAuthPersistence(f.adapter, { prefix, sessionKey });
+    const nextToken = await blockedSession({ ...f, guard: nextGuard });
+    assert.notEqual(nextToken, token);
+    assert.equal(f.values.get(storedKey), original);
+    assert.equal(await nextGuard.retireSavedSession(nextToken), true);
+    assert.equal(f.values.has(storedKey), false);
+    assert.equal(f.values.has(probeKey), false);
+    assert.equal(nextGuard.getState().sessionRetired, true);
+    assert.equal(f.calls.filter(([kind, key]) => kind === 'remove' && key === storedKey).length, 1);
+    await assert.rejects(f.guard.storage.setItem(sessionKey, original));
+    await assert.rejects(nextGuard.storage.setItem(sessionKey, original));
+  }
+});

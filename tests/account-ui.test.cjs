@@ -48,7 +48,7 @@ const byId = (tree, id) => find(tree, (item) => item.props?.testID === id);
 function accountPage(overrides = {}) {
   const h = harness(),
     current = state(overrides);
-  const controller = { createResetSession: () => ({ close() {} }) };
+  const controller = { getSnapshot: () => current, createResetSession: () => ({ close() {} }) };
   const { AccountScreen } = h.load('AccountScreen.tsx', {
     './useAccountView': { ...h.hooks, useAccountView: () => current },
     './AccountCredentialsForm': { AccountCredentialsForm: 'AccountCredentialsForm' },
@@ -446,4 +446,162 @@ test('local reset hides a previous address message after email edits and Strict 
   h.host.unmount();
   h.fireTimers();
   assert.equal(closed, 1);
+});
+
+function unavailableSavedSession(overrides = {}) {
+  return {
+    phase: 'session-unavailable',
+    persistence: 'unconfirmed',
+    activeOwnerToken: null,
+    canSignIn: false,
+    canRegister: false,
+    canSignOut: false,
+    canRequestReset: false,
+    canRetry: false,
+    canRetireSavedSession: true,
+    sessionRetirementToken: 'retirement-a',
+    sessionRetired: false,
+    ...overrides,
+  };
+}
+const settleUi = () => new Promise((resolve) => setImmediate(resolve));
+
+test('saved-sign-in recovery requires a separate confirmation and cancellation retires its callback', async () => {
+  const f = accountPage(unavailableSavedSession()),
+    calls = [];
+  f.controller.retireSavedSession = async (token) => {
+    calls.push(token);
+    return { ok: true, pending: false, message: 'Removed.' };
+  };
+  let tree = f.render();
+  assert.ok(byId(tree, 'account-remove-saved-sign-in'));
+  assert.equal(byId(tree, 'account-remove-saved-sign-in-confirm'), null);
+  byId(tree, 'account-remove-saved-sign-in').props.onPress();
+  tree = f.render();
+  const previousConfirm = byId(tree, 'account-remove-saved-sign-in-confirm').props.onPress;
+  assert.deepEqual(calls, []);
+  byId(tree, 'account-remove-saved-sign-in-cancel').props.onPress();
+  tree = f.render();
+  assert.equal(byId(tree, 'account-remove-saved-sign-in-confirm'), null);
+  previousConfirm();
+  await settleUi();
+  assert.deepEqual(calls, []);
+  f.h.host.unmount();
+});
+
+test('confirmation rechecks the live token before dispatch and cannot transfer to a new target', async () => {
+  const f = accountPage(unavailableSavedSession()),
+    calls = [];
+  f.controller.retireSavedSession = async (token) => {
+    calls.push(token);
+    return { ok: false, pending: false, message: 'Synthetic result.' };
+  };
+  let tree = f.render();
+  byId(tree, 'account-remove-saved-sign-in').props.onPress();
+  tree = f.render();
+  const oldConfirm = byId(tree, 'account-remove-saved-sign-in-confirm').props.onPress;
+  f.current.sessionRetirementToken = 'retirement-b';
+  oldConfirm();
+  await settleUi();
+  assert.deepEqual(calls, []);
+  tree = f.render();
+  assert.equal(byId(tree, 'account-remove-saved-sign-in-confirm'), null);
+  byId(tree, 'account-remove-saved-sign-in').props.onPress();
+  tree = f.render();
+  byId(tree, 'account-remove-saved-sign-in-confirm').props.onPress();
+  await settleUi();
+  assert.deepEqual(calls, ['retirement-b']);
+  f.h.host.unmount();
+});
+
+test('retirement controls fail closed for absent, revoked, busy or replaced confirmation contexts', async () => {
+  for (const patch of [
+    { canRetireSavedSession: false },
+    { sessionRetirementToken: null },
+    { sessionRetired: true },
+    { viewToken: 'replacement-view' },
+    { busy: true },
+  ]) {
+    const f = accountPage(unavailableSavedSession()),
+      calls = [];
+    f.controller.retireSavedSession = async (token) => {
+      calls.push(token);
+      return { ok: true, pending: false, message: '' };
+    };
+    let tree = f.render();
+    byId(tree, 'account-remove-saved-sign-in').props.onPress();
+    tree = f.render();
+    const oldConfirm = byId(tree, 'account-remove-saved-sign-in-confirm').props.onPress;
+    Object.assign(f.current, patch);
+    oldConfirm();
+    await settleUi();
+    assert.deepEqual(calls, []);
+    tree = f.render();
+    const confirm = byId(tree, 'account-remove-saved-sign-in-confirm');
+    assert.ok(confirm === null || confirm.props.disabled);
+    f.h.host.unmount();
+  }
+  const absent = accountPage(unavailableSavedSession({ sessionRetirementToken: null }));
+  absent.controller.retireSavedSession = async () => {
+    throw Error('Must not run');
+  };
+  assert.equal(byId(absent.render(), 'account-remove-saved-sign-in'), null);
+  absent.h.host.unmount();
+});
+
+test('confirmed retirement dispatches once and leaves an explicit restart requirement without guest access', async () => {
+  const f = accountPage(unavailableSavedSession()),
+    work = deferred(),
+    calls = [];
+  f.controller.retireSavedSession = (token) => {
+    calls.push(token);
+    return work.promise;
+  };
+  let tree = f.render();
+  byId(tree, 'account-remove-saved-sign-in').props.onPress();
+  tree = f.render();
+  const confirm = byId(tree, 'account-remove-saved-sign-in-confirm').props.onPress;
+  confirm();
+  confirm();
+  assert.deepEqual(calls, ['retirement-a']);
+  Object.assign(f.current, {
+    sessionRetirementToken: null,
+    canRetireSavedSession: false,
+    sessionRetired: true,
+  });
+  work.resolve({ ok: true, pending: false, message: 'Restart required.' });
+  await settleUi();
+  tree = f.render();
+  assert.ok(byId(tree, 'account-session-retired'));
+  assert.equal(byId(tree, 'account-back').props.disabled, true);
+  assert.equal(byId(tree, 'account-sign-in'), null);
+  assert.equal(byId(tree, 'account-create'), null);
+  assert.equal(byId(tree, 'account-sign-out'), null);
+  assert.equal(byId(tree, 'account-remove-saved-sign-in'), null);
+  f.h.host.unmount();
+});
+
+test('credential headings apply to configured accounts and unavailable local reset is not shown', () => {
+  for (const mode of ['sign-in', 'register']) {
+    const h = harness(),
+      { AccountCredentialsForm } = h.load('AccountCredentialsForm.tsx');
+    const current = state({ cloudAccount: true, canRequestReset: false });
+    const tree = h.host.render(() =>
+      AccountCredentialsForm({
+        mode,
+        controller: {},
+        state: current,
+        onBack() {},
+        onReset() {
+          throw Error('No local reset');
+        },
+      }),
+    );
+    assert.equal(
+      byId(tree, 'account-form-title').props.children.flat(Infinity).join(''),
+      mode === 'register' ? 'Create account' : 'Sign in',
+    );
+    assert.equal(byId(tree, 'account-reset'), null);
+    h.host.unmount();
+  }
 });

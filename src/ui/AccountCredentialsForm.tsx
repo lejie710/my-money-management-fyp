@@ -61,8 +61,8 @@ export function AccountCredentialsForm({
         onPress={onBack}
         testID="account-form-back"
       />
-      <Text style={[ui.heading, ui.gap]}>
-        {mode === 'register' ? 'Create a local demo account' : 'Sign in to a local demo account'}
+      <Text style={[ui.heading, ui.gap]} testID="account-form-title">
+        {mode === 'register' ? 'Create account' : 'Sign in'}
       </Text>
       <Text style={[ui.body, ui.smallGap]}>
         Your guest wallet stays separate. Account access does not transfer or upload its records.
@@ -148,7 +148,7 @@ export function AccountCredentialsForm({
           />
         </View>
       ) : null}
-      {mode === 'sign-in' ? (
+      {mode === 'sign-in' && state.canRequestReset ? (
         <View style={ui.smallGap}>
           <Action
             secondary

@@ -22,7 +22,8 @@ export type AccountUiState = {
   sessionRestored: boolean;
   service: 'available' | 'unavailable' | 'unchecked';
   busy: boolean;
-  operation: 'sign-in' | 'register' | 'sign-out' | 'profile' | 'reconcile' | null;
+  operation:
+    'sign-in' | 'register' | 'sign-out' | 'profile' | 'reconcile' | 'retire-session' | null;
   message: string;
   error: string;
   blockedReason: string;
@@ -34,6 +35,9 @@ export type AccountUiState = {
   canRequestReset: boolean;
   canRequestEmailReset?: boolean;
   canRetry: boolean;
+  canRetireSavedSession?: boolean;
+  sessionRetirementToken?: string | null;
+  sessionRetired?: boolean;
   /** Captured calendar date for profile validation; refreshed by the root coordinator. */
   today: string;
   profile: {
@@ -81,6 +85,8 @@ export interface AccountUiController {
   signIn(input: { email: string; password: string }): Promise<AccountResult>;
   register(input: { email: string; password: string; displayName: string }): Promise<AccountResult>;
   signOut(): Promise<AccountResult>;
+  /** Explicit recovery only; removes a confirmed unavailable sign-in, never financial records. */
+  retireSavedSession?(token: string): Promise<AccountResult>;
   updateDisplayName(name: string): Promise<AccountResult>;
   saveLocalProfile(extras: LocalProfileExtras): Promise<AccountResult>;
   /** Reopens saved profile/session state; never silently repeats a failed profile mutation. */

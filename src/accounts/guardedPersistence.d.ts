@@ -14,6 +14,7 @@ export function createGuardedAuthPersistence(
   preflight(): Promise<void>;
   confirm(expectedBytes: string | null): Promise<boolean>;
   finishInitialization(expectedBytes: string | null): Promise<boolean>;
+  retireSavedSession(token: string): Promise<boolean>;
   getState(): Readonly<{
     phase: 'hydrating' | 'ready';
     blocked: boolean;
@@ -21,6 +22,8 @@ export function createGuardedAuthPersistence(
     probeReady: boolean;
     sessionObserved: boolean;
     initialHadSession: boolean;
+    sessionRetirementToken: string | null;
+    sessionRetired: boolean;
   }>;
   subscribe(listener: () => void): () => void;
   drain(): Promise<void>;
