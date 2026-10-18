@@ -1,0 +1,178 @@
+import type { AccountCoordinator, AccessView } from './coordinator';
+import { encodeDataFamily } from './identity';
+import { validDate } from '../core/model';
+import type {
+  AccountResult,
+  AccountUiController,
+  AccountUiState,
+  LocalResetController,
+} from '../ui/accountUiTypes';
+
+let nextBinding = 0;
+export type AccountPresentation = AccountUiController & {
+  /** Refresh a foreground/day change without starting any account or storage operation. */
+  refresh(): void;
+  /** Removes only this projection's subscription; the root owns coordinator/SDK lifetime. */
+  dispose(): void;
+};
+
+export function createAccountPresentation(options: {
+  coordinator: AccountCoordinator;
+  today(): string;
+  createResetSession?: () => LocalResetController;
+  /** Optional root recovery wrapper; must remain a read/reconcile action. */
+  retry?: () => Promise<AccountResult>;
+}): AccountPresentation {
+  const { coordinator } = options;
+  const binding = ++nextBinding;
+  const listeners = new Set<() => void>();
+  let disposed = false;
+  let revision = 0;
+  let lastFamily: string | null = null;
+  let lastOwner: string | null = null;
+  let unknownIdentity = false;
+  let fingerprint = '';
+  let snapshot: AccountUiState;
+
+  function project(view: AccessView): AccountUiState {
+    const today = options.today();
+    if (!validDate(today)) throw new Error('Account presentation requires a valid local date.');
+    // A temporarily absent active owner is not a new account. Unknown identity is
+    // a separate boundary, so old forms are retired even if recovery returns the same UID.
+    const unknown = view.persistence === 'unconfirmed' && view.phase === 'session-unavailable';
+    let changedContext = unknown !== unknownIdentity;
+    unknownIdentity = unknown;
+    if (view.persistence === 'confirmed' && view.family) {
+      const family = encodeDataFamily(view.family);
+      if (family !== lastFamily) {
+        changedContext = true;
+        lastFamily = family;
+        lastOwner = null;
+      }
+      if (view.activeOwnerToken !== null && view.activeOwnerToken !== lastOwner) {
+        changedContext = true;
+        lastOwner = view.activeOwnerToken;
+      }
+    }
+    if (changedContext) revision++;
+    const busy =
+      view.phase === 'restoring' ||
+      view.phase === 'switching' ||
+      view.operation !== null ||
+      (!view.capabilities.retry && view.recovery !== 'restart');
+    const operation = view.operation === 'profile-extras' ? 'profile' : view.operation;
+    const profileLoading = view.phase === 'restoring' || view.phase === 'switching';
+    const profileUnavailable = ['unavailable', 'uncertain'].includes(view.profileExtrasStatus);
+    const profileError =
+      view.profileExtrasStatus === 'uncertain'
+        ? 'The local profile save could not be confirmed. Check saved profile details before editing them again.'
+        : view.profileExtrasStatus === 'unavailable'
+          ? 'Saved local profile details could not be read. Existing data has been retained.'
+          : '';
+    const user = view.user
+      ? Object.freeze({
+          uid: view.user.uid,
+          email: view.user.email,
+          displayName: view.user.displayName,
+        })
+      : null;
+    const extras = view.profileExtras
+      ? Object.freeze({
+          gender: view.profileExtras.gender,
+          birthDate: view.profileExtras.birthDate,
+        })
+      : null;
+    return Object.freeze({
+      viewToken: `account-view-${binding}-${revision}`,
+      provider: view.provider === 'local-emulator' ? 'configured' : 'unconfigured',
+      phase: view.phase,
+      user,
+      persistence: view.persistence,
+      activeOwnerToken: view.activeOwnerToken,
+      sessionRestored: view.sessionRestored,
+      service: view.service,
+      busy,
+      operation: operation ?? (busy ? 'reconcile' : null),
+      message: view.message,
+      error: '', // Coordinator messages are already safe and shown once by the UI.
+      blockedReason:
+        view.recovery === 'restart'
+          ? 'Restart required before account changes. Saved wallets have been retained.'
+          : '',
+      canSignIn: view.capabilities.signIn,
+      canRegister: view.capabilities.register,
+      canSignOut: view.capabilities.signOut,
+      canEditProfile: view.capabilities.editProfile,
+      canSaveLocalProfile: view.capabilities.saveProfileExtras,
+      canRequestReset:
+        !!options.createResetSession &&
+        view.provider === 'local-emulator' &&
+        view.phase === 'ready' &&
+        view.persistence === 'confirmed' &&
+        !busy,
+      canRetry: view.capabilities.retry,
+      today,
+      profile: Object.freeze({
+        phase: profileLoading ? 'loading' : profileUnavailable ? 'unavailable' : 'ready',
+        extras,
+        displayNamePending: view.profileNamePending,
+        error: profileError,
+      }),
+    });
+  }
+
+  function refresh() {
+    if (disposed) return;
+    const next = project(coordinator.getSnapshot());
+    const nextFingerprint = JSON.stringify(next);
+    if (fingerprint === nextFingerprint) return;
+    snapshot = next;
+    fingerprint = nextFingerprint;
+    for (const listener of listeners) {
+      try {
+        listener();
+      } catch {
+        // Presentation observers cannot alter account state or other observers.
+      }
+    }
+  }
+  refresh();
+  const unsubscribe = coordinator.subscribe(refresh);
+  // Close the read/subscribe gap without causing another account operation.
+  refresh();
+  const inactive = (): Promise<AccountResult> =>
+    Promise.resolve({
+      ok: false,
+      pending: false,
+      message: 'This account view is closed. Open Account again to continue.',
+    });
+  const invoke = (work: () => Promise<AccountResult>) => (disposed ? inactive() : work());
+  const retry = () => invoke(() => (options.retry ? options.retry() : coordinator.retry()));
+  return {
+    getSnapshot: () => snapshot,
+    subscribe(listener) {
+      if (disposed) return () => {};
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    signIn: (input) => invoke(() => coordinator.signIn(input)),
+    register: (input) => invoke(() => coordinator.register(input)),
+    signOut: () => invoke(() => coordinator.signOut()),
+    updateDisplayName: (name) => invoke(() => coordinator.updateDisplayName(name)),
+    saveLocalProfile: (extras) => invoke(() => coordinator.saveProfileExtras(extras)),
+    retry,
+    retryProfile: retry,
+    createResetSession() {
+      if (disposed || !snapshot.canRequestReset || !options.createResetSession)
+        throw new Error('Local password reset is unavailable in the current account view.');
+      return options.createResetSession();
+    },
+    refresh,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      listeners.clear();
+      unsubscribe();
+    },
+  };
+}

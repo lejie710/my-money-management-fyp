@@ -1,0 +1,8 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "FYP: Start Android demo", "type": "process", "command": "node", "args": ["scripts/start-android.cjs"], "problemMatcher": [], "isBackground": true },
+    { "label": "FYP: Test", "type": "npm", "script": "test", "problemMatcher": [] },
+    { "label": "FYP: Type check", "type": "npm", "script": "typecheck", "problemMatcher": "$tsc" }
+  ]
+}

@@ -1,0 +1,15 @@
+export type TransactionType = 'income' | 'expense' | 'debt';
+export type Transaction = { id: string; type: TransactionType; title: string; category: string; date: string; amountCents: number };
+export type Ledger = { version: number; wallet: { id: string; name: string; currency: string }; transactions: Transaction[] };
+export type Draft = { type: TransactionType; title: string; category: string; date: string; amount: string };
+export const STORAGE_VERSION: number;
+export function localDate(date?: Date): string;
+export function validDate(value: unknown): boolean;
+export function parseAmount(value: string): number;
+export function validateLedger(value: unknown): Ledger;
+export function transactionFromDraft(draft: Draft, id: string): Transaction;
+export function saveTransaction(ledger: Ledger, transaction: Transaction, editing?: boolean): Ledger;
+export function deleteTransaction(ledger: Ledger, id: string): Ledger;
+export function totals(ledger: Ledger): { income: number; expense: number; debt: number; balance: number };
+export function formatMoney(cents: number): string;
+export function createDemoLedger(date?: Date): Ledger;

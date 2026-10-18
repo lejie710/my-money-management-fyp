@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "My Money Management",
+    "slug": "my-money-management",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "mymoneymanagement",
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choose a photo to attach to a transaction.",
+          "cameraPermission": "Take a receipt photo to review and add a transaction.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Choose a person name for a transaction. Contact details are not saved."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Use your current location to choose a transaction place label.",
+          "locationAlwaysPermission": false,
+          "locationAlwaysAndWhenInUsePermission": false,
+          "motionUsagePermission": false,
+          "locationFullAccuracyPermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false,
+          "isAndroidMotionActivityEnabled": false
+        }
+      ],
+      "@maplibre/maplibre-react-native",
+      "./plugins/withReliableExpoPrint"
+    ],
+    "android": {
+      "package": "com.lejie710.mymoneymanagement",
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
+      ],
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.lejie710.mymoneymanagement",
+      "supportsTablet": false
+    },
+    "platforms": [
+      "android",
+      "ios"
+    ]
+  }
+}

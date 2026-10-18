@@ -1,0 +1,30 @@
+  private suspend fun printToFile(options: PrintOptions): FilePrintResult? {
+    var descriptor: ParcelFileDescriptor? = null
+    var taskOwnsDescriptor = false
+    try {
+      val output = withContext(Dispatchers.IO) {
+        val file = File(FileUtils.generateFilePath(context))
+        if (!file.createNewFile()) throw UnexpectedPrintException("The generated PDF filename already exists; no existing file was changed.")
+        descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_TRUNCATE or ParcelFileDescriptor.MODE_WRITE_ONLY)
+        file
+      }
+      return withContext(Dispatchers.Main) {
+        suspendCancellableCoroutine<FilePrintResult> { continuation ->
+          val task = ReliablePdfRenderTask(context, options, output, descriptor!!) { finished, result, error ->
+            activePdfTasks.remove(finished)
+            if (continuation.isActive) {
+              if (error != null) continuation.resumeWithException(error)
+              else continuation.resume(requireNotNull(result))
+            }
+          }
+          taskOwnsDescriptor = true
+          activePdfTasks.add(task)
+          continuation.invokeOnCancellation { task.cancel() }
+          task.start()
+        }
+      }
+    } finally {
+      // Covers cancellation/context loss before the retained render task owns the descriptor.
+      if (!taskOwnsDescriptor) descriptor?.close()
+    }
+  }

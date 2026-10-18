@@ -1,0 +1,59 @@
+name: Source checks
+
+# Prepared and inspected locally; hosted execution has not yet been verified.
+# Native builds, emulators and live provider services are separate checks.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-checks:
+    name: Windows source checks
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI: "true"
+      EXPO_NO_TELEMETRY: "1"
+      PYTHONUTF8: "1"
+      TZ: UTC
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up the recorded Node version
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          check-latest: false
+          package-manager-cache: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          architecture: x64
+          check-latest: false
+
+      - name: Install locked application dependencies
+        run: npm.cmd ci --ignore-scripts --no-audit --no-fund
+
+      - name: Check JavaScript and TypeScript
+        run: npm.cmd run check
+
+      - name: Check Python helper decisions
+        run: npm.cmd run test:python

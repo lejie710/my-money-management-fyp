@@ -1,0 +1,12 @@
+{
+  "version": "58.0.6",
+  "originalModuleSha256": "86756fea943cdd58785385c64e2f3fb6b77311959ad5e62a5f6c3314b428ba7c",
+  "originalRendererSha256": "8a7ef81a8501173a22435d0454cd4c12418246a0f97c361a34658d79a457a763",
+  "patchedModuleSha256": "e6756b1a91ccfbd3376bfe6111e71e2dd1ebb04d43da04661c18bf6f46dd530d",
+  "helperSha256": "d4c053a9ddf08c3d24a4a72cf90b7b15e79cc5a940f8352c7e776b114e7957b2",
+  "fragmentSha256": "22cc8e5817b178d964c694235d7d1484360194d29721e67f4966967913642371",
+  "capability": {
+    "name": "ReliablePdfVersion",
+    "value": 1
+  }
+}

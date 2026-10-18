@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "lemonade": {
+    "version": "2026.42.1",
+    "file": "lemonade-embeddable-2026.42.1-windows-x64.zip",
+    "bytes": 5407306,
+    "sha256": "6bc9b9f301aa8235f2e6a2a51d75f0ba0f9cb3580e65ff0ea4fc6752ef3a8f3f",
+    "url": "https://github.com/lemonade-sdk/lemonade/releases/download/v2026.42.1/lemonade-embeddable-2026.42.1-windows-x64.zip",
+    "archivePrefix": "lemonade-embeddable-2026.42.1-windows-x64/"
+  },
+  "backend": {
+    "version": "b11393",
+    "kind": "vulkan",
+    "file": "llama-b11393-bin-win-vulkan-x64.zip",
+    "bytes": 33279911,
+    "sha256": "b68b17780f4736b733a128022749d40e4030a40a12b5c388f63a4e354adc62b1",
+    "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11393/llama-b11393-bin-win-vulkan-x64.zip",
+    "archivePrefix": ""
+  },
+  "model": {
+    "id": "Qwen3-4B-Instruct-2507-GGUF",
+    "repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+    "revision": "a06e946bb6b655725eafa393f4a9745d460374c9",
+    "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "bytes": 2497281120,
+    "sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
+    "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/a06e946bb6b655725eafa393f4a9745d460374c9/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "repositoryUrl": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF",
+    "license": "Apache-2.0",
+    "cachePath": "models--unsloth--Qwen3-4B-Instruct-2507-GGUF/snapshots/a06e946bb6b655725eafa393f4a9745d460374c9/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+  },
+  "profile": { "contextTokens": 2048, "outputTokens": 160, "threads": 4, "parallel": 1, "httpTimeoutSeconds": 120, "minimumAvailableBytes": 6442450944, "runtimeMinimumAvailableBytes": 1073741824, "runtimeLowMemorySamples": 2 }
+}
