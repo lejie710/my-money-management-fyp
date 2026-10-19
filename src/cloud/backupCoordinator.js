@@ -40,16 +40,20 @@ function createBackupCoordinator({
     pending = null,
     active = null,
     generation = 0,
-    lastOwner = null,
     lastContext = null,
+    contextDirty = false,
+    retiredRequest = null,
     committing = null;
   const readContext = () => {
     const value = getBinding();
+    const setup = getSetup();
     return {
+      available: value?.allowed === true,
+      setup: JSON.stringify(setup),
       owner: value?.ownerToken ?? null,
       binding: value?.bindingToken ?? null,
       pending: value?.identityPending ?? false,
-      session: getSetup().sessionToken ?? null,
+      session: setup.sessionToken ?? null,
     };
   };
   const sameContext = (a, b) => !!a && !!b && Object.keys(a).every((key) => a[key] === b[key]);
@@ -60,10 +64,33 @@ function createBackupCoordinator({
     const pending = current ? cleanupByFamily.get(encodeDataFamily(current.family)) : null;
     return { cleanupPending: !!pending, cleanupMessage: pending || '' };
   };
-  let safeViewCache = null;
   const publish = (changes) => {
     view = Object.freeze({ ...view, ...changes, ...cleanupState(), setup: getSetup() });
     for (const listener of listeners) listener();
+  };
+  const observeContext = () => {
+    const context = readContext();
+    if (sameContext(lastContext, context)) return;
+    lastContext = context;
+    generation++;
+    contextDirty = true;
+    if (committing === null) retiredRequest = active;
+    preview = null;
+    pending = null;
+    // Reading the external-store snapshot retires stale confirmations immediately,
+    // but notification and request cancellation stay outside React's render path.
+    view = Object.freeze({
+      ...view,
+      busy: !!active,
+      preview: null,
+      pending: null,
+      journalBlocked: false,
+      backups: [],
+      message: '',
+      error: '',
+      ...cleanupState(),
+      setup: getSetup(),
+    });
   };
   const binding = () => {
     const value = getBinding();
@@ -247,52 +274,24 @@ function createBackupCoordinator({
   }
   const controller = {
     getSnapshot() {
-      let currentContext = null;
-      try {
-        currentContext = readContext();
-      } catch {}
-      if (sameContext(currentContext, lastContext)) return view;
-      if (safeViewCache?.source === view && sameContext(safeViewCache.context, currentContext))
-        return safeViewCache.snapshot;
-      const snapshot = Object.freeze({
-        ...view,
-        busy: !!active,
-        preview: null,
-        pending: null,
-        journalBlocked: false,
-        backups: [],
-        message: '',
-        error: '',
-        ...cleanupState(),
-        setup: getSetup(),
-      });
-      safeViewCache = { source: view, context: currentContext, snapshot };
-      return snapshot;
+      observeContext();
+      return view;
     },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     ownerChanged() {
-      const context = readContext();
-      if (sameContext(lastContext, context)) return;
-      lastContext = context;
-      lastOwner = context.owner;
-      generation++;
-      if (committing === null) active?.abort();
-      preview = null;
-      pending = null;
-      publish({
-        busy: !!active,
-        preview: null,
-        pending: null,
-        journalBlocked: false,
-        backups: [],
-        cleanupPending: false,
-        cleanupMessage: '',
-        message: '',
-        error: '',
-      });
+      observeContext();
+      if (retiredRequest && committing === null) {
+        const request = retiredRequest;
+        retiredRequest = null;
+        request.abort();
+      }
+      if (contextDirty) {
+        contextDirty = false;
+        for (const listener of listeners) listener();
+      }
     },
     open() {
       return run(async (token, signal) => {
