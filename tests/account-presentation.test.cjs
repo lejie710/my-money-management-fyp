@@ -66,6 +66,7 @@ function fixture(initial = ready(), options = {}) {
     'signIn',
     'register',
     'signOut',
+    'retireSavedSession',
     'updateDisplayName',
     'saveProfileExtras',
     'retry',
@@ -341,5 +342,81 @@ test('dispose is idempotent, removes only projection subscription, and blocks st
   assert.equal(delivered, 0);
   assert.equal((await old()).ok, false);
   assert.equal((await f.controller.retry()).ok, false);
+  assert.deepEqual(f.calls, []);
+});
+
+test('unavailable-session retirement is explicit, token-bound and retires older presentation views', async () => {
+  const f = fixture({
+    ...ready(),
+    phase: 'session-unavailable',
+    persistence: 'unconfirmed',
+    recovery: 'restart',
+    family: null,
+    activeOwnerToken: null,
+    sessionRetirementToken: 'retirement-a',
+    sessionRetired: false,
+    capabilities: {
+      ...ready().capabilities,
+      signIn: false,
+      register: false,
+      retry: false,
+      retireSession: true,
+    },
+  });
+  const first = f.controller.getSnapshot();
+  assert.equal(first.canRetireSavedSession, true);
+  assert.equal(first.sessionRetirementToken, 'retirement-a');
+  assert.equal(first.sessionRetired, false);
+  assert.deepEqual(f.calls, []);
+  assert.equal((await f.controller.retireSavedSession('wrong-token')).ok, false);
+  assert.deepEqual(f.calls, []);
+  assert.strictEqual(await f.controller.retireSavedSession('retirement-a'), f.result);
+  assert.deepEqual(f.calls, [['retireSavedSession', 'retirement-a']]);
+  f.set({ sessionRetirementToken: 'retirement-b' });
+  assert.notEqual(f.controller.getSnapshot().viewToken, first.viewToken);
+  assert.equal((await f.controller.retireSavedSession('retirement-a')).ok, false);
+  assert.equal(f.calls.length, 1);
+  const offered = f.controller.getSnapshot().viewToken;
+  f.set({
+    sessionRetirementToken: null,
+    sessionRetired: true,
+    capabilities: {
+      ...ready().capabilities,
+      signIn: false,
+      register: false,
+      retry: false,
+      retireSession: false,
+    },
+  });
+  const retired = f.controller.getSnapshot();
+  assert.notEqual(retired.viewToken, offered);
+  assert.equal(retired.canRetireSavedSession, false);
+  assert.equal(retired.sessionRetired, true);
+  assert.match(retired.blockedReason, /Restart the app/);
+  assert.equal(retired.canSignIn, false);
+  assert.equal(retired.canRegister, false);
+  assert.equal((await f.controller.retireSavedSession('retirement-b')).ok, false);
+  assert.equal(f.calls.length, 1);
+});
+
+test('retirement projection does not infer permission from a token and rejects live capability revocation', async () => {
+  const initial = {
+    ...ready(),
+    phase: 'session-unavailable',
+    persistence: 'unconfirmed',
+    recovery: 'restart',
+    sessionRetirementToken: 'retirement-a',
+    capabilities: { ...ready().capabilities, retry: false, retireSession: false },
+  };
+  const f = fixture(initial);
+  assert.equal(f.controller.getSnapshot().canRetireSavedSession, false);
+  assert.equal((await f.controller.retireSavedSession('retirement-a')).ok, false);
+  f.set({ capabilities: { ...initial.capabilities, retireSession: true } });
+  assert.equal(f.controller.getSnapshot().canRetireSavedSession, true);
+  f.set({ sessionRetirementToken: null });
+  assert.equal(f.controller.getSnapshot().canRetireSavedSession, false);
+  f.set({ sessionRetirementToken: 'retirement-b' });
+  f.controller.dispose();
+  assert.equal((await f.controller.retireSavedSession('retirement-b')).ok, false);
   assert.deepEqual(f.calls, []);
 });

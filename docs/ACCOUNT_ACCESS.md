@@ -30,6 +30,16 @@ Before an identity change, the app blocks new financial writes, waits for owned 
 
 If a recheck hides an unfinished editor, an explicit Discard transaction draft and recheck action remains reachable outside the financial screen. This discards unsaved form edits only. A failed or uncertain saved operation instead requires Check saved session; the app reads the actual stored result and does not automatically repeat registration, login or financial writes. A restart-required state means that the SDK's saved identity could not be safely reconciled in the current process. Restarting is a recovery step, not permission to clear app data.
 
+## Remove an unavailable saved sign-in
+
+If the SDK tries to discard an existing readable saved sign-in during startup, the application preserves that record instead of silently switching identities. This can happen when an account was deleted from the selected service, including after a local emulator was restarted without its exported users. Repeated app restarts cannot repair that missing server identity by themselves.
+
+Account offers **Remove unavailable saved sign-in** only for that specific known-record recovery state. Open the separate confirmation and review its effect. Cancelling changes nothing. Confirmation rechecks the exact saved record and device storage, removes only this scope/project's unavailable SDK sign-in, and verifies the result. It does not delete an account on the server, clear app storage, or alter guest/account wallets, profiles, photos or other saved sign-ins.
+
+After confirmed removal, close and restart the app. Financial access stays gated in the current process so old SDK callbacks cannot recreate the retired session. The fresh process must confirm the guest identity and its existing saved wallet normally before sign-in or registration becomes available. A newly created account with the same email can have a different UID and does not automatically receive the old account wallet.
+
+Unreadable storage, unresolved financial writes, a changed session record or an uncertain removal outcome do not authorize this recovery shortcut. The app keeps access blocked and reports the unresolved outcome; it never retries deletion or rewrites a replacement session automatically. Ordinary sign-out remains the separate action for a healthy confirmed account.
+
 ## Explicit guest copy and cloud backup
 
 Configured Firebase accounts can open **Wallet > Tools > Connections > Cloud Backup**. Previewing a guest copy shows its records before confirmation; copying requires an unchanged empty account wallet and leaves the guest source intact. It performs no upload. Previewing and confirming cloud backup is a separate action, with photos excluded until deliberately selected.

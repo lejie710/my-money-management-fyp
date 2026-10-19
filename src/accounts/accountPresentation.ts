@@ -32,6 +32,8 @@ export function createAccountPresentation(options: {
   let lastFamily: string | null = null;
   let lastOwner: string | null = null;
   let unknownIdentity = false;
+  let lastRetirementToken: string | null = null;
+  let lastSessionRetired = false;
   let fingerprint = '';
   let snapshot: AccountUiState;
 
@@ -43,6 +45,16 @@ export function createAccountPresentation(options: {
     const unknown = view.persistence === 'unconfirmed' && view.phase === 'session-unavailable';
     let changedContext = unknown !== unknownIdentity;
     unknownIdentity = unknown;
+    const retirementToken =
+      typeof view.sessionRetirementToken === 'string' && view.sessionRetirementToken
+        ? view.sessionRetirementToken
+        : null;
+    const sessionRetired = view.sessionRetired === true;
+    if (retirementToken !== lastRetirementToken || sessionRetired !== lastSessionRetired) {
+      changedContext = true;
+      lastRetirementToken = retirementToken;
+      lastSessionRetired = sessionRetired;
+    }
     if (view.persistence === 'confirmed' && view.family) {
       const family = encodeDataFamily(view.family);
       if (family !== lastFamily) {
@@ -97,10 +109,17 @@ export function createAccountPresentation(options: {
       operation: operation ?? (busy ? 'reconcile' : null),
       message: view.message,
       error: '', // Coordinator messages are already safe and shown once by the UI.
-      blockedReason:
-        view.recovery === 'restart'
-          ? 'Restart required before account changes. Saved wallets have been retained.'
-          : '',
+      blockedReason: sessionRetired
+        ? 'The unavailable saved sign-in was removed. Restart the app before continuing. Saved wallets, profiles and photos have been retained.'
+        : view.capabilities.retireSession && retirementToken
+          ? 'The saved sign-in cannot be restored. You can remove this unavailable sign-in without deleting saved wallets.'
+          : view.recovery === 'restart'
+            ? 'Restart required before account changes. Saved wallets have been retained.'
+            : '',
+      canRetireSavedSession:
+        !!view.capabilities.retireSession && !!retirementToken && !sessionRetired && !busy,
+      sessionRetirementToken: retirementToken,
+      sessionRetired,
       canSignIn: view.capabilities.signIn,
       canRegister: view.capabilities.register,
       canSignOut: view.capabilities.signOut,
@@ -161,6 +180,22 @@ export function createAccountPresentation(options: {
     signIn: (input) => invoke(() => coordinator.signIn(input)),
     register: (input) => invoke(() => coordinator.register(input)),
     signOut: () => invoke(() => coordinator.signOut()),
+    retireSavedSession: (token) =>
+      invoke(() => {
+        const current = coordinator.getSnapshot();
+        if (
+          !token ||
+          current.sessionRetirementToken !== token ||
+          !current.capabilities.retireSession ||
+          current.sessionRetired
+        )
+          return Promise.resolve({
+            ok: false,
+            pending: false,
+            message: 'This saved sign-in confirmation is no longer current. Review Account again.',
+          });
+        return coordinator.retireSavedSession(token);
+      }),
     updateDisplayName: (name) => invoke(() => coordinator.updateDisplayName(name)),
     saveLocalProfile: (extras) => invoke(() => coordinator.saveProfileExtras(extras)),
     retry,

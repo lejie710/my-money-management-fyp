@@ -136,6 +136,9 @@ function createFirebaseAuthAdapter({
       service,
       mutationPending: pending(),
       recovery: restartRequired || guard.getState().blocked ? 'restart' : 'retry',
+      sessionRetirementToken:
+        !pending() && auth?.currentUser === null ? guard.getState().sessionRetirementToken : null,
+      sessionRetired: guard.getState().sessionRetired,
     });
   };
   const waitBounded = (promise) =>
@@ -348,6 +351,32 @@ function createFirebaseAuthAdapter({
     },
     signOut() {
       return mutate('sign-out', () => sdk.signOut(auth));
+    },
+    async retireSavedSession(token) {
+      const state = guard.getState();
+      if (
+        !initialization ||
+        pending() ||
+        !auth ||
+        auth.currentUser !== null ||
+        !beforeChange ||
+        !state.sessionRetirementToken ||
+        token !== state.sessionRetirementToken
+      )
+        throw restartError();
+      ownMutation = true;
+      contextRevision++;
+      try {
+        await beforeChange();
+        if (auth.currentUser !== null || token !== guard.getState().sessionRetirementToken)
+          throw restartError();
+        await guard.retireSavedSession(token);
+        restartRequired = true;
+        return { retired: true };
+      } finally {
+        ownMutation = false;
+        notify();
+      }
     },
     updateDisplayName(expectedUid, name) {
       const value = normalizeDisplayName(name);

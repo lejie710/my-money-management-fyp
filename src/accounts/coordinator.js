@@ -33,7 +33,12 @@ function confirmed(value) {
     !['confirmed', 'unconfirmed'].includes(value.persistence) ||
     !['available', 'unavailable', 'unchecked'].includes(value.service) ||
     typeof value.mutationPending !== 'boolean' ||
-    (value.recovery !== undefined && !['retry', 'restart'].includes(value.recovery))
+    (value.recovery !== undefined && !['retry', 'restart'].includes(value.recovery)) ||
+    (value.sessionRetirementToken !== undefined &&
+      value.sessionRetirementToken !== null &&
+      (typeof value.sessionRetirementToken !== 'string' ||
+        !/^saved-sign-in-[1-9][0-9]*$/.test(value.sessionRetirementToken))) ||
+    (value.sessionRetired !== undefined && typeof value.sessionRetired !== 'boolean')
   )
     throw new Error('Invalid identity confirmation.');
   return {
@@ -42,6 +47,8 @@ function confirmed(value) {
     service: value.service,
     mutationPending: value.mutationPending,
     recovery: value.recovery ?? 'retry',
+    sessionRetirementToken: value.sessionRetirementToken ?? null,
+    sessionRetired: value.sessionRetired === true,
   };
 }
 function sameUser(left, right) {
@@ -125,6 +132,8 @@ function createAccountCoordinator(options) {
       operation: null,
       persistence: 'unconfirmed',
       sessionRestored: false,
+      sessionRetirementToken: null,
+      sessionRetired: false,
       recovery: 'retry',
       service: 'unchecked',
       message: 'Opening the saved account session.',
@@ -165,6 +174,7 @@ function createAccountCoordinator(options) {
     signIn: (input) => invoke(mutate, 'sign-in', input),
     register: (input) => invoke(mutate, 'register', input),
     signOut: () => invoke(mutate, 'sign-out'),
+    retireSavedSession: (token) => invoke(retireSavedSession, token),
     updateDisplayName: (name) => invoke(mutate, 'profile', name),
     saveProfileExtras: (extras) => invoke(saveExtras, extras),
     observeCommittedWallet(family, ledger) {
@@ -216,6 +226,17 @@ function publish(cell, changes = {}) {
     editProfile: ready && !!next.user,
     saveProfileExtras: ready && !!next.user && ['none', 'ready'].includes(next.profileExtrasStatus),
     retry: !cell.busy && next.recovery !== 'restart',
+    retireSession:
+      !cell.busy &&
+      next.phase === 'session-unavailable' &&
+      next.persistence === 'unconfirmed' &&
+      next.recovery === 'restart' &&
+      typeof next.sessionRetirementToken === 'string' &&
+      !next.sessionRetired &&
+      typeof cell.options.auth?.retireSavedSession === 'function' &&
+      cell.unknownWrites.size === 0 &&
+      !cell.activationAttempt &&
+      leaseReady(cell),
   };
   next.profileNamePending = !!cell.pendingName && next.user?.uid === cell.pendingName.uid;
   cell.view = freeze(clone(next));
@@ -400,10 +421,7 @@ async function settle(cell, message = '') {
     if (!identity || identity.persistence !== 'confirmed' || identity.mutationPending) {
       cell.lastConfirmation = identity;
       const recovery = identity?.recovery ?? 'retry',
-        message =
-          recovery === 'restart'
-            ? 'This running app could not safely restore the saved account session. Restart the app to try restoration again. Saved wallets have been retained.'
-            : unavailable().message;
+        message = sessionRecoveryMessage(identity);
       publish(cell, {
         phase: 'session-unavailable',
         family: null,
@@ -412,6 +430,8 @@ async function settle(cell, message = '') {
         operation: null,
         persistence: 'unconfirmed',
         recovery,
+        sessionRetirementToken: identity?.sessionRetirementToken ?? null,
+        sessionRetired: identity?.sessionRetired === true,
         service: identity?.service ?? 'unchecked',
         message,
         profileExtras: null,
@@ -580,6 +600,8 @@ async function settle(cell, message = '') {
       operation: null,
       persistence: 'confirmed',
       sessionRestored: true,
+      sessionRetirementToken: null,
+      sessionRetired: false,
       recovery: 'retry',
       service: afterExtras.service,
       message:
@@ -600,6 +622,81 @@ async function settle(cell, message = '') {
     message: unavailable().message,
   });
   return unavailable();
+}
+function sessionRecoveryMessage(identity) {
+  if (identity?.sessionRetired)
+    return 'The unavailable saved sign-in was removed from this device. Restart the app to open the guest wallet. Account wallets, profiles and photos were retained.';
+  if (identity?.sessionRetirementToken)
+    return 'The saved sign-in could not be restored. You may explicitly remove this unavailable sign-in, then restart. Saved wallets, profiles and photos will be retained.';
+  return identity?.recovery === 'restart'
+    ? 'This running app could not safely restore the saved account session. Restart the app to try restoration again. Saved wallets have been retained.'
+    : unavailable().message;
+}
+function retireSavedSession(cell, token) {
+  if (!cell.view.capabilities.retireSession || token !== cell.view.sessionRetirementToken)
+    return Promise.resolve(
+      result(
+        false,
+        false,
+        'This saved sign-in recovery changed. Reopen Account before confirming.',
+      ),
+    );
+  return run(cell, async () => {
+    if (!(await acquire(cell, 'reconcile')) || !leaseReady(cell) || cell.unknownWrites.size)
+      return result(
+        false,
+        true,
+        'Financial work is still unconfirmed. The saved sign-in was not removed.',
+      );
+    const before = await inspectIdentity(cell);
+    if (
+      before.persistence !== 'unconfirmed' ||
+      before.mutationPending ||
+      before.sessionRetired ||
+      before.sessionRetirementToken !== token
+    ) {
+      const reconciled = await settle(cell);
+      return result(
+        false,
+        reconciled.pending,
+        'The saved sign-in changed before confirmation. Nothing was removed; review the current account state.',
+      );
+    }
+    publish(cell, {
+      operation: 'retire-session',
+      activeOwnerToken: null,
+      message: 'Removing only the unavailable saved sign-in.',
+    });
+    let removed = false;
+    try {
+      removed = (await cell.options.auth.retireSavedSession(token))?.retired === true;
+    } catch {
+      /* Only the separately confirmed state may report removal. */
+    }
+    const after = await inspectIdentity(cell);
+    cell.lastConfirmation = after;
+    const confirmedRemoval = removed && after.sessionRetired && after.persistence === 'unconfirmed';
+    const message = confirmedRemoval
+      ? sessionRecoveryMessage(after)
+      : 'Saved sign-in removal was not confirmed. Restart after device storage is available before trying again. Saved wallets, profiles and photos were retained.';
+    publish(cell, {
+      phase: 'session-unavailable',
+      family: null,
+      user: null,
+      activeOwnerToken: null,
+      operation: null,
+      persistence: 'unconfirmed',
+      sessionRestored: false,
+      recovery: 'restart',
+      sessionRetirementToken: null,
+      sessionRetired: confirmedRemoval,
+      message,
+      profileExtras: null,
+      profileExtrasStatus: 'none',
+    });
+    // Keep the financial lease held. A fresh process must confirm guest identity/storage.
+    return result(confirmedRemoval, !confirmedRemoval, message);
+  });
 }
 function restore(cell, initial) {
   return run(cell, async () => {
@@ -623,15 +720,14 @@ function restore(cell, initial) {
       if (initialIdentity.persistence !== 'confirmed' || initialIdentity.mutationPending) {
         cell.lastConfirmation = initialIdentity;
         const recovery = initialIdentity.recovery ?? 'retry',
-          message =
-            recovery === 'restart'
-              ? 'This running app could not safely restore the saved account session. Restart the app to try restoration again. Saved wallets have been retained.'
-              : unavailable().message;
+          message = sessionRecoveryMessage(initialIdentity);
         publish(cell, {
           phase: 'session-unavailable',
           persistence: 'unconfirmed',
           activeOwnerToken: null,
           recovery,
+          sessionRetirementToken: initialIdentity.sessionRetirementToken,
+          sessionRetired: initialIdentity.sessionRetired,
           message,
         });
         return result(false, true, message);

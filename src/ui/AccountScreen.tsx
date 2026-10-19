@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Action, Field, FormError, RowAction, Screen } from './components';
 import { AccountCredentialsForm } from './AccountCredentialsForm';
@@ -15,16 +15,43 @@ export function AccountScreen(props: Props) {
 }
 
 function AccountScreenContent({ controller, state, onBack }: Props & { state: AccountUiState }) {
-  const [route, setRoute] = useState<
-    'home' | 'sign-in' | 'register' | 'profile' | 'reset' | 'email-reset' | 'sign-out'
+  const [requestedRoute, setRoute] = useState<
+    | 'home'
+    | 'sign-in'
+    | 'register'
+    | 'profile'
+    | 'reset'
+    | 'email-reset'
+    | 'sign-out'
+    | 'retire-session'
   >('home');
+  const [retirement, setRetirement] = useState<{ token: string; viewToken: string } | null>(null);
+  const retirementRef = useRef<{ token: string; viewToken: string } | null>(null);
+
   const [reset, setReset] = useState<LocalResetController | null>(null);
   const [pageError, setPageError] = useState('');
   const [resetEmail, setResetEmail] = useState('');
   const [emailResetMessage, setEmailResetMessage] = useState('');
   const operation = useAccountOperation(`${state.viewToken}/account`);
   const busy = state.busy || operation.busy;
-  const home = () => setRoute('home');
+  const canRetire =
+    !!state.canRetireSavedSession &&
+    !!state.sessionRetirementToken &&
+    !state.sessionRetired &&
+    !!controller.retireSavedSession;
+  const retirementCurrent =
+    canRetire &&
+    retirement !== null &&
+    retirement.token === state.sessionRetirementToken &&
+    retirement.viewToken === state.viewToken;
+  // A changed capability/target cannot leave a stale confirmation on screen.
+  const route = requestedRoute === 'retire-session' && !retirementCurrent ? 'home' : requestedRoute;
+  if (!retirementCurrent) retirementRef.current = null;
+  const home = () => {
+    retirementRef.current = null;
+    setRetirement(null);
+    setRoute('home');
+  };
   const openReset = () => {
     if (!state.canRequestReset || busy) return;
     try {
@@ -41,7 +68,32 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
     const result = await operation.run(() => controller.signOut());
     if (result?.ok) home();
   };
-  const showAccountStatus = route === 'home' || route === 'sign-out';
+  const retireSavedSession = async () => {
+    if (
+      !retirementCurrent ||
+      !retirement ||
+      retirementRef.current !== retirement ||
+      busy ||
+      !controller.retireSavedSession
+    )
+      return;
+    const captured = retirement;
+    const current = controller.getSnapshot();
+    if (
+      current.viewToken !== captured.viewToken ||
+      current.sessionRetirementToken !== captured.token ||
+      !current.canRetireSavedSession ||
+      current.sessionRetired ||
+      current.busy
+    )
+      return;
+    const result = await operation.run(() => controller.retireSavedSession!(captured.token));
+    if (result?.ok) {
+      setRetirement(null);
+      home();
+    }
+  };
+  const showAccountStatus = route === 'home' || route === 'sign-out' || route === 'retire-session';
   const accountError =
     pageError || state.error || (!operation.result?.ok ? (operation.result?.message ?? '') : '');
   return (
@@ -51,7 +103,7 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
           <Action
             secondary
             label="Back to Wallet"
-            disabled={busy}
+            disabled={busy || !!state.sessionRetired}
             onPress={onBack}
             testID="account-back"
           />
@@ -170,6 +222,46 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
               />
             </View>
           ) : null}
+          {state.sessionRetired ? (
+            <Text
+              style={[ui.body, ui.gap]}
+              accessibilityLiveRegion="polite"
+              testID="account-session-retired"
+            >
+              Saved sign-in removed. Close and reopen the app to continue. Your saved wallets,
+              profiles and photos have been kept.
+            </Text>
+          ) : null}
+          {canRetire ? (
+            <View style={ui.gap}>
+              <Action
+                secondary
+                label="Remove unavailable saved sign-in"
+                disabled={busy}
+                onPress={() => {
+                  const current = controller.getSnapshot();
+                  if (
+                    busy ||
+                    !current.canRetireSavedSession ||
+                    !current.sessionRetirementToken ||
+                    current.sessionRetired ||
+                    current.busy ||
+                    current.viewToken !== state.viewToken
+                  )
+                    return;
+                  operation.clear();
+                  const confirmation = {
+                    token: current.sessionRetirementToken,
+                    viewToken: current.viewToken,
+                  };
+                  retirementRef.current = confirmation;
+                  setRetirement(confirmation);
+                  setRoute('retire-session');
+                }}
+                testID="account-remove-saved-sign-in"
+              />
+            </View>
+          ) : null}
           {state.canRetry ? (
             <View style={ui.smallGap}>
               <Action
@@ -248,6 +340,36 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
           onBack={home}
           onSignIn={() => setRoute('sign-in')}
         />
+      ) : null}
+      {route === 'retire-session' && retirementCurrent ? (
+        <View>
+          <Text style={ui.heading}>Remove this unavailable saved sign-in?</Text>
+          <Text style={[ui.body, ui.smallGap]}>
+            This removes only the saved sign-in from this device. It does not delete your account,
+            wallets, profiles or photos. Close and reopen the app afterward, then sign in again.
+          </Text>
+          <View style={ui.gap}>
+            <Action
+              label={busy ? 'Checking saved sign-in.' : 'Remove saved sign-in'}
+              disabled={busy || !retirementCurrent}
+              onPress={() => {
+                void retireSavedSession();
+              }}
+              testID="account-remove-saved-sign-in-confirm"
+            />
+          </View>
+          <View style={ui.smallGap}>
+            <Action
+              secondary
+              label="Keep saved sign-in"
+              disabled={busy}
+              onPress={() => {
+                if (!busy && !controller.getSnapshot().busy) home();
+              }}
+              testID="account-remove-saved-sign-in-cancel"
+            />
+          </View>
+        </View>
       ) : null}
       {route === 'sign-out' ? (
         <View>

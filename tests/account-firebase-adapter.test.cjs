@@ -457,3 +457,44 @@ test('hosted reset is an explicit request with no emulator inbox and no wallet/s
   assert.deepEqual(f.values, before);
   assert.equal((await f.adapter.confirmIdentity()).user.uid, 'uid-A');
 });
+
+test('known SDK hydration removal can be explicitly retired but this adapter stays gated until restart', async () => {
+  const original = JSON.stringify(fakeUser().toJSON()),
+    f = fixture({ initial: original, hydrationDeletes: true });
+  f.values.set('unrelated-wallet', 'retained');
+  const before = await f.adapter.initialize(f.beforeChange);
+  assert.equal(before.persistence, 'unconfirmed');
+  assert.equal(before.recovery, 'restart');
+  assert.match(before.sessionRetirementToken, /^saved-sign-in-/);
+  await assert.rejects(f.adapter.signOut());
+  assert.deepEqual(await f.adapter.retireSavedSession(before.sessionRetirementToken), {
+    retired: true,
+  });
+  assert.equal(f.values.has(f.storedKey), false);
+  assert.equal(f.values.get('unrelated-wallet'), 'retained');
+  assert.ok(f.events.includes('financial-guard'));
+  const after = await f.adapter.confirmIdentity();
+  assert.equal(after.persistence, 'unconfirmed');
+  assert.equal(after.recovery, 'restart');
+  assert.equal(after.sessionRetired, true);
+  assert.equal(after.sessionRetirementToken, null);
+  await assert.rejects(f.adapter.signIn({ email: 'a@example.test', password: 'synthetic' }));
+  await assert.rejects(f.adapter.retireSavedSession(before.sessionRetirementToken));
+  const restarted = fixture();
+  assert.equal(
+    (await restarted.adapter.initialize(restarted.beforeChange)).persistence,
+    'confirmed',
+  );
+});
+
+test('session retirement still waits for the financial guard and rejects mismatched offers', async () => {
+  const f = fixture({ initial: JSON.stringify(fakeUser().toJSON()), hydrationDeletes: true });
+  const before = await f.adapter.initialize(async () => {
+    throw Error('Financial write remains unresolved.');
+  });
+  const original = f.values.get(f.storedKey);
+  await assert.rejects(f.adapter.retireSavedSession(before.sessionRetirementToken + '0'));
+  await assert.rejects(f.adapter.retireSavedSession(before.sessionRetirementToken));
+  assert.equal(f.values.get(f.storedKey), original);
+  assert.equal((await f.adapter.confirmIdentity()).sessionRetired, false);
+});

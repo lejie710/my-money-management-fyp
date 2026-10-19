@@ -1,4 +1,5 @@
 // Opaque SDK-session persistence. Never parses or exposes credentials/token fields.
+let nextRetirementId = 0;
 function createGuardedAuthPersistence(adapter, { prefix, sessionKey }) {
   if (
     !adapter ||
@@ -20,6 +21,9 @@ function createGuardedAuthPersistence(adapter, { prefix, sessionKey }) {
     sessionObserved = false;
   let probeSet = false,
     probeReady = false;
+  let retirement = null,
+    retirementAttempted = false,
+    retirementConfirmed = false;
   const listeners = new Set();
   const changed = () => {
     revision++;
@@ -33,7 +37,8 @@ function createGuardedAuthPersistence(adapter, { prefix, sessionKey }) {
     new Error(
       'Local account persistence could not be confirmed. Saved session data was retained where possible. Restart after storage is available.',
     );
-  const fault = () => {
+  const fault = (hydrationRemoval = false) => {
+    if (!hydrationRemoval) retirement = null;
     blocked = true;
     changed();
     return unavailable();
@@ -83,8 +88,11 @@ function createGuardedAuthPersistence(adapter, { prefix, sessionKey }) {
     if (value !== null && typeof value !== 'string') throw fault();
     const before = await read(key);
     if (key === sessionKey && phase === 'hydrating' && value === null && before !== null) {
-      // An SDK hydration fallback must not erase the only existing session record.
-      throw fault();
+      // Never silently drop an existing session, even when the server revoked it.
+      // A separate explicit action may retire only these exact known bytes.
+      if (probeReady && sessionObserved && initialHadSession && !retirementAttempted)
+        retirement = { token: `saved-sign-in-${++nextRetirementId}`, bytes: before };
+      throw fault(true);
     }
     try {
       if (value === null) await adapter.removeItem(scopedKey);
@@ -143,6 +151,67 @@ function createGuardedAuthPersistence(adapter, { prefix, sessionKey }) {
       changed();
       return true;
     },
+    retireSavedSession(token) {
+      return queue(async () => {
+        if (
+          !blocked ||
+          phase !== 'hydrating' ||
+          retirementAttempted ||
+          !retirement ||
+          token !== retirement.token ||
+          !probeReady ||
+          !sessionObserved
+        )
+          throw unavailable();
+        const expected = retirement.bytes;
+        const scopedKey = keyFor(sessionKey);
+        const probeKey = keyFor('__fyp_retirement_probe');
+        try {
+          if ((await adapter.getItem(scopedKey)) !== expected) throw unavailable();
+          // Reconcile only our exact reserved sentinel after an interrupted probe.
+          // Unknown values stay blocked; no Auth bytes are removed at this stage.
+          const previousProbe = await adapter.getItem(probeKey);
+          if (previousProbe === '1') {
+            try {
+              await adapter.removeItem(probeKey);
+            } catch {
+              /* Exact absence readback decides. */
+            }
+            if ((await adapter.getItem(probeKey)) !== null) throw unavailable();
+          } else if (previousProbe !== null) throw unavailable();
+          // A fresh successful probe is still required for every explicit attempt.
+          try {
+            await adapter.setItem(probeKey, '1');
+          } catch {
+            /* Readback decides. */
+          }
+          if ((await adapter.getItem(probeKey)) !== '1') throw unavailable();
+          try {
+            await adapter.removeItem(probeKey);
+          } catch {
+            /* Readback decides. */
+          }
+          if ((await adapter.getItem(probeKey)) !== null) throw unavailable();
+          if ((await adapter.getItem(scopedKey)) !== expected) throw unavailable();
+          // The ticket is single use. This guard never accepts another SDK write.
+          retirementAttempted = true;
+          retirement = null;
+          changed();
+          try {
+            await adapter.removeItem(scopedKey);
+          } catch {
+            /* Readback decides. */
+          }
+          if ((await adapter.getItem(scopedKey)) !== null) throw unavailable();
+          retirementConfirmed = true;
+          changed();
+          return true;
+        } catch {
+          retirement = null;
+          throw fault();
+        }
+      });
+    },
     getState() {
       return Object.freeze({
         phase,
@@ -151,6 +220,8 @@ function createGuardedAuthPersistence(adapter, { prefix, sessionKey }) {
         probeReady,
         sessionObserved,
         initialHadSession,
+        sessionRetirementToken: retirement?.token ?? null,
+        sessionRetired: retirementConfirmed,
       });
     },
     subscribe(listener) {
