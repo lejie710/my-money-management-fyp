@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import {
   Budget,
@@ -12,8 +12,13 @@ import { Action, Screen } from './components';
 import { BudgetEditor } from './BudgetEditor';
 import { GoalEditor } from './GoalEditor';
 import { displayDate } from './TransactionsScreen';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 import { SaveLedger } from './useLedger';
+import { encodeDataFamily } from '../accounts/identity';
+import {
+  createFinancialFormDraftStore,
+  type FinancialFormDraftContext,
+} from '../drafts/formDrafts';
 
 export type PlanProps = {
   ledger: Ledger;
@@ -21,6 +26,7 @@ export type PlanProps = {
   saveError: string;
   onSave: SaveLedger;
   clearSaveError: () => void;
+  draftContext?: FinancialFormDraftContext;
 };
 
 export function ProgressBar({
@@ -32,6 +38,7 @@ export function ProgressBar({
   label: string;
   over?: boolean;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   return (
     <View
       style={styles.track}
@@ -56,9 +63,83 @@ export function ProgressBar({
   );
 }
 
-export function PlanScreen({ ledger, saving, saveError, onSave, clearSaveError }: PlanProps) {
-  const [budgetEditor, setBudgetEditor] = useState<{ budget?: Budget } | null>(null);
-  const [goalEditor, setGoalEditor] = useState(false);
+export function PlanScreen({
+  ledger,
+  saving,
+  saveError,
+  onSave,
+  clearSaveError,
+  draftContext,
+}: PlanProps) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
+  const ownerKey = draftContext
+    ? encodeDataFamily(draftContext.family) + '/' + draftContext.incarnationId
+    : ledger.wallet.incarnationId;
+  type BudgetSession = { ownerKey: string; token: object; budget?: Budget };
+  type GoalSession = { ownerKey: string; token: object; targetId: string | null };
+  const [storedBudget, setBudgetEditor] = useState<BudgetSession | null>(null);
+  const [storedGoal, setGoalEditor] = useState<GoalSession | null>(null);
+  const budgetEditor = storedBudget?.ownerKey === ownerKey ? storedBudget : null;
+  const goalEditor = storedGoal?.ownerKey === ownerKey ? storedGoal : null;
+  const live = useRef({
+    ownerKey,
+    budgetEditor,
+    goalEditor,
+    draftContext,
+    incarnationId: ledger.wallet.incarnationId,
+  });
+  live.current = {
+    ownerKey,
+    budgetEditor,
+    goalEditor,
+    draftContext,
+    incarnationId: ledger.wallet.incarnationId,
+  };
+  const currentOwner = () =>
+    live.current.ownerKey === ownerKey &&
+    (!live.current.draftContext ||
+      live.current.draftContext.incarnationId === live.current.incarnationId) &&
+    (live.current.draftContext?.isCurrent?.() ?? true);
+  const openBudget = (budget?: Budget) => {
+    if (!currentOwner() || saving) return;
+    const session = { ownerKey, token: {}, budget };
+    live.current.budgetEditor = session;
+    setBudgetEditor(session);
+  };
+  const openGoal = () => {
+    if (!currentOwner() || saving) return;
+    const session = { ownerKey, token: {}, targetId: ledger.goal?.id ?? null };
+    live.current.goalEditor = session;
+    setGoalEditor(session);
+  };
+  const budgetCurrent = () =>
+    currentOwner() && !!budgetEditor && live.current.budgetEditor === budgetEditor;
+  const goalCurrent = () =>
+    currentOwner() && !!goalEditor && live.current.goalEditor === goalEditor;
+  const budgetStore = useMemo(
+    () =>
+      draftContext && budgetEditor
+        ? createFinancialFormDraftStore(draftContext.deviceStorage, {
+            family: draftContext.family,
+            incarnationId: draftContext.incarnationId,
+            kind: 'budget',
+            targetId: budgetEditor.budget?.id ?? null,
+          })
+        : undefined,
+    [draftContext?.deviceStorage, ownerKey, budgetEditor],
+  );
+  const goalStore = useMemo(
+    () =>
+      draftContext && goalEditor
+        ? createFinancialFormDraftStore(draftContext.deviceStorage, {
+            family: draftContext.family,
+            incarnationId: draftContext.incarnationId,
+            kind: 'goal',
+            targetId: goalEditor.targetId,
+          })
+        : undefined,
+    [draftContext?.deviceStorage, ownerKey, goalEditor],
+  );
   const { width, fontScale } = useWindowDimensions();
   const stackAmounts = width < 350 || fontScale > 1.2;
   const goal = goalProgress(ledger);
@@ -92,7 +173,7 @@ export function PlanScreen({ ledger, saving, saveError, onSave, clearSaveError }
               testID="add-budget"
               onPress={() => {
                 clearSaveError();
-                setBudgetEditor({});
+                openBudget();
               }}
             />
           </View>
@@ -169,7 +250,7 @@ export function PlanScreen({ ledger, saving, saveError, onSave, clearSaveError }
                     testID={`edit-budget-${budget.id}`}
                     onPress={() => {
                       clearSaveError();
-                      setBudgetEditor({ budget });
+                      openBudget(budget);
                     }}
                   />
                 </View>
@@ -199,7 +280,7 @@ export function PlanScreen({ ledger, saving, saveError, onSave, clearSaveError }
                 testID="add-goal"
                 onPress={() => {
                   clearSaveError();
-                  setGoalEditor(true);
+                  openGoal();
                 }}
               />
             </View>
@@ -254,7 +335,7 @@ export function PlanScreen({ ledger, saving, saveError, onSave, clearSaveError }
                 testID="edit-goal"
                 onPress={() => {
                   clearSaveError();
-                  setGoalEditor(true);
+                  openGoal();
                 }}
               />
             </View>
@@ -265,58 +346,73 @@ export function PlanScreen({ ledger, saving, saveError, onSave, clearSaveError }
         <BudgetEditor
           {...{ ledger, saving, saveError, onSave, clearSaveError }}
           budget={budgetEditor.budget}
-          onClose={() => setBudgetEditor(null)}
+          draftStore={budgetStore}
+          isCurrent={budgetCurrent}
+          onClose={() => {
+            if (budgetCurrent()) {
+              live.current.budgetEditor = null;
+              setBudgetEditor(null);
+            }
+          }}
         />
       ) : null}
       {goalEditor ? (
         <GoalEditor
           {...{ ledger, saving, saveError, onSave, clearSaveError }}
-          onClose={() => setGoalEditor(false)}
+          draftStore={goalStore}
+          isCurrent={goalCurrent}
+          onClose={() => {
+            if (goalCurrent()) {
+              live.current.goalEditor = null;
+              setGoalEditor(null);
+            }
+          }}
         />
       ) : null}
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  metrics: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 16 },
-  metric: { flexGrow: 1, flexShrink: 1, flexBasis: '44%' },
-  stackedMetric: { flexBasis: '100%' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
-  sectionTitle: { flexGrow: 1, flexShrink: 1, flexBasis: 160 },
-  headerAction: { minWidth: 128 },
-  periodBadge: {
-    color: colors.accent,
-    backgroundColor: colors.accentSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: '500',
-  },
-  amount: {
-    color: colors.text,
-    fontSize: 22,
-    lineHeight: 30,
-    fontWeight: '600',
-    marginTop: 4,
-    fontVariant: ['tabular-nums'],
-  },
-  remainder: {
-    color: colors.green,
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  track: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.raised,
-    overflow: 'hidden',
-    marginVertical: 14,
-  },
-  fill: { height: '100%', borderRadius: 3 },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    metrics: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 16 },
+    metric: { flexGrow: 1, flexShrink: 1, flexBasis: '44%' },
+    stackedMetric: { flexBasis: '100%' },
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
+    sectionTitle: { flexGrow: 1, flexShrink: 1, flexBasis: 160 },
+    headerAction: { minWidth: 128 },
+    periodBadge: {
+      color: colors.accent,
+      backgroundColor: colors.accentSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 8,
+      alignSelf: 'flex-start',
+      fontSize: 13,
+      lineHeight: 19,
+      fontWeight: '500',
+    },
+    amount: {
+      color: colors.text,
+      fontSize: 22,
+      lineHeight: 30,
+      fontWeight: '600',
+      marginTop: 4,
+      fontVariant: ['tabular-nums'],
+    },
+    remainder: {
+      color: colors.green,
+      fontSize: 16,
+      lineHeight: 24,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+    },
+    track: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.raised,
+      overflow: 'hidden',
+      marginVertical: 14,
+    },
+    fill: { height: '100%', borderRadius: 3 },
+  });

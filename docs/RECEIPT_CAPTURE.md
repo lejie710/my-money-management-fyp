@@ -1,6 +1,6 @@
 # Review a receipt before saving an expense
 
-Wallet > Tools > Connections > Review receipt turns a selected image into editable suggestions. Recognition uses the explicitly configured Windows OCR or Google Cloud Vision provider through the Windows companion. The phone previews and reviews the result; it does not run an on-device OCR model or automatically create a transaction. The selected provider and data destination appear before the recognition action.
+Wallet > Tools > Connections > Review receipt turns a selected image into editable suggestions. Google Cloud Vision is the primary configurable recognition service through the authenticated deployable backend. Windows OCR and the older paired-companion Vision route remain explicit local/development alternatives. The phone previews and reviews the result; it does not run an on-device OCR model or automatically create a transaction. The selected provider and data destination appear before the recognition action.
 
 The final result is an ordinary expense in the existing wallet currency and selected expense category. Reports, budgets and achievements use the same transaction model as manual entry. Receipt capture adds no new financial schema, conversion rate, special receipt-origin field or automatically generated notes.
 
@@ -8,7 +8,7 @@ The final result is an ordinary expense in the existing wallet currency and sele
 
 1. Open Review receipt from Connections, or its shortcut when receipt recognition is configured. Choose one image, or choose Take receipt photo when the installed build and camera permission support it. Cancelling selection leaves the current draft unchanged.
 2. Inspect the preview, expanding it if needed. A failed preview prevents recognition/confirmation until a usable image is selected.
-3. Read the provider disclosure, then choose Recognize receipt for Windows OCR or Recognize with Google Vision for cloud OCR. Only this explicit action sends the selected image. Windows OCR stays on the computer; Vision forwards the image to Google. A configured connection alone does not establish that the service is reachable.
+3. Read the provider disclosure, then choose Recognize receipt for Windows OCR or Recognize with Google Vision for cloud OCR. Only this explicit action sends the selected image. Windows OCR processes the image on the connected computer; the configured Vision route forwards it through the backend or selected development companion to Google. A configured connection alone does not establish that the service is reachable.
 4. Check the suggested title, receipt date, amount and currency against the image. Choose an expense category; the app does not infer one. Ambiguous dates and labelled totals are offered as alternatives rather than silently selected.
 5. Optionally select Keep the receipt photo. It starts off. Review the fields and select the explicit acknowledgement, then choose Confirm and save expense.
 
@@ -41,11 +41,11 @@ Recognize again deliberately replaces a successful review with a new result. If 
 
 The native adapter checks actual JPEG, PNG or WebP bytes and dimensions before accepting a preview. Local image selection is limited to 10 MiB, 16,384 pixels per side and 40 million pixels overall. Google Cloud Vision requests have a narrower 6 MiB limit, checked before upload; Windows OCR retains the 10 MiB limit. Unsupported, malformed or oversized results are rejected. The app copies an accepted selection into a temporary owned receipt area; it does not delete gallery originals or save a camera result to the camera roll.
 
-Keep photo creates a separate permanent attachment only during a validated confirmation. If it is off, the saved expense has no receipt photo. Raw OCR rows are temporary review data and are not added to notes or the ledger. This is not an image-metadata removal feature: the selected file bytes may still contain embedded image metadata.
+Keep photo creates a separate permanent attachment only during a validated confirmation. In a live Firebase account, confirming that expense also uploads the attachment to the account's private Storage area before the financial cloud save is confirmed; guest attachments remain local. If Keep photo is off, the expense has no retained receipt photo. Raw OCR rows are temporary review data and are not added to notes or the ledger. This is not an image-metadata removal feature: the selected file bytes may still contain embedded image metadata.
 
-Closing a review, changing account/wallet ownership, replacing the companion connection/provider or losing the active storage state invalidates its asynchronous callbacks. An old response cannot enter a new account's review. Temporary image release waits for any permanent-photo copy to drain. Uncertain cleanup retains the exact owned files and exposes Retry receipt image cleanup; it does not sweep unrelated cache files.
+Closing a review, changing account/wallet ownership, replacing the service connection/provider or losing the active storage state invalidates its asynchronous callbacks. An old response cannot enter a new account's review. Temporary image release waits for any permanent-photo copy to drain. Uncertain cleanup retains the exact owned files and exposes Retry receipt image cleanup; it does not sweep unrelated cache files.
 
-The Windows OCR host uses an owned temporary OCR job. Successful confirmed process closure permits cleanup. If termination is unconfirmed, the job is retained and new OCR is blocked until the owned helper is inspected/recovered. No result is invented while waiting. Manual financial entry remains available when the companion is missing or unavailable.
+The Windows OCR host uses an owned temporary OCR job. Successful confirmed process closure permits cleanup. If termination is unconfirmed, the job is retained and new OCR is blocked until the owned helper is inspected/recovered. No result is invented while waiting. Manual financial entry remains available when recognition is missing or unavailable. A live account still requires server confirmation for a financial save; recognition success does not bypass that boundary.
 
 ## Camera capability
 
@@ -53,7 +53,15 @@ The receipt branch declares Android camera permission and a camera-purpose strin
 
 The visible camera action requires both native platform availability and `EXPO_PUBLIC_RECEIPT_CAMERA_ENABLED=1`. The installed APK must contain the corresponding native configuration; changing a Metro flag cannot add a missing Android permission to an older binary. Emulator camera input is configured outside the app as its virtual scene. This implementation has no host-webcam control or camera-roll-save call. Physical-camera and iOS behavior need their own verification.
 
-## Connect the Windows companion
+## Configure Google Cloud Vision
+
+Use the [deployable backend guide](../tools/backend/README.md) for the intended independent-phone route. Supply your own Firebase project for authentication, the private Google Vision key and HTTPS service origin. The phone receives provider metadata and obtains its current Firebase token; the Vision key remains on the server. A configured backend does not require a Windows helper beside the phone.
+
+The panel identifies Google Cloud Vision, the selected image destination and possible provider charges before Recognize with Google Vision. Opening a screen, selecting an image or checking metadata is not a recognition request. Cancellation discards late review results but cannot reverse completed Google processing or guarantee a charge was avoided. Failed hosted requests never switch to Windows OCR automatically.
+
+Vision results retain provider identity, word geometry, language evidence and available confidence values. Missing confidence stays unknown. Unknown/non-English language adds a warning because the field parser primarily recognizes English labels. None of those values replaces the user's review of the image. See the [adapter guide](../scripts/companion/ocr/GOOGLE_VISION.md) for its exact normalization and limits.
+
+## Optional Windows companion
 
 The [public companion guide](../scripts/companion/README.md) provides the exact prerequisites, ownership checks, pairing and stop commands. OCR-only mode needs the Windows `en-US` OCR language component, Python and Node; it does not need an LLM, model download or another npm project.
 
@@ -77,15 +85,9 @@ The local companion connection additionally requires a development runtime. Rest
 
 Clear that run's matching device pairing before requesting its owned stop, following the companion guide. Do not remove another run's forwarding or stop a process by a broad name. A confirmed post-stop summary can support explicit cleanup of that same stale pairing; uncertain evidence remains available for inspection.
 
-## Optional Google Cloud Vision
+## Development use of Vision through the companion
 
-Select Vision explicitly in the companion's private configuration and pair its version 2 connection. The provider key remains server-side; the app receives only the declared provider, limit and private loopback connection. See the [Vision guide](../scripts/companion/ocr/GOOGLE_VISION.md) for exact bounds and normalized evidence.
-
-The panel identifies Google Cloud Vision before recognition and explains that the image leaves the device, with possible provider usage charges. Cancel prevents late review results but cannot guarantee that Google stopped already submitted processing or charging. There is no automatic fallback from failed Windows OCR to Vision.
-
-Vision results retain their original provider identity, pixel polygons, axis-aligned bounds, language evidence and optional confidence values. Missing confidence remains unknown. These values do not replace manual review. Unknown or non-English recognition language adds a warning because the field parser primarily recognizes English receipt labels. Switching providers retires the pending capture session; mismatched provider responses cannot produce editable guesses.
-
-Offline integration checks use the reviewed adapter with fake upstream responses, actual owned loopback routes, the real client and the normal confirmation gate. They do not establish live Google account access, general OCR accuracy or a completed native cloud-provider walkthrough. The historical Android checks below exercised Windows OCR.
+The companion can still select Vision in its private provider configuration and advertise it through version 2 pairing. This route keeps the key on the Windows host and uses the existing private loopback device connection. It is a development alternative to the deployable backend, with the same explicit recognition/review boundary and no automatic provider fallback. Follow the [companion guide](../scripts/companion/README.md) for that setup.
 
 ## Worked example
 
@@ -95,6 +97,8 @@ Exercise: recognition shows two distinct labelled totals and the date `03/04/202
 
 Answer: neither ambiguity authorizes a save. Read the image, choose or type the correct total and ISO date, select the expense category, verify the wallet currency and explicitly acknowledge the fields before Confirm. If the receipt cannot be read confidently, cancel or use the separate manual editor. No guessed amount or today's date should be inserted as a fallback.
 
-The completed Android gate contains 11 recorded checks. A selected receipt image passed through real Windows OCR, review, acknowledgement, explicit expense/photo save and restart. Its retained photo still matched the source bytes after the owned gallery source was deleted. Camera denial/grant, real emulated capture preview and later cancellation were verified separately. Blank OCR and a stopped service created no expense, manual fallback stayed reachable, and final temporary-capture cleanup left zero owned files.
+## Verification scope
 
-See [Verification](../VERIFICATION.md) for the exact scope. The successful OCR/save path used the selected synthetic receipt image; camera capture/preview verification does not establish general camera-photo OCR accuracy. Parser/unit tests, a rebuilt camera APK and a configured connection are different kinds of evidence. Physical-device camera behavior, iOS and full receipt-form large-text coverage remain unverified.
+[Verification](../VERIFICATION.md) records the actual Windows OCR, native picker/camera, reviewed save, restart and owned-image cleanup checks. Those observations are separate from injected Google Vision integration responses. The gallery's Windows OCR frame accurately shows an explicitly reviewed manual total; it is not a live Vision result.
+
+Live Google account access, general receipt accuracy and a deployed backend remain unverified. Camera capture/preview evidence does not establish OCR accuracy for arbitrary physical-camera photos. Parser tests, a rebuilt camera APK and service configuration are different kinds of evidence; current native/account/cloud-save behavior must be recorded separately.

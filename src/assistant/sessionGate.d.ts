@@ -36,7 +36,10 @@ export function createAssistantSession(
     createAbort?: () => AbortController;
   },
 ): {
-  ask(question: string): Promise<AssistantResult>;
+  ask(
+    question: string,
+    history?: readonly Readonly<{ question: string; answer: string }>[],
+  ): Promise<AssistantResult>;
   cancel(): void;
   close(): void;
   /** Check again immediately before displaying an awaited result. */

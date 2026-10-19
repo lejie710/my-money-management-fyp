@@ -1,6 +1,6 @@
 # Wallet and transaction foundation
 
-The app supports one active wallet. A wallet has a name and one currency; it does not convert between currencies. The original eight currency choices are available. JPY uses whole yen, while MYR, USD, EUR, GBP, AUD, CAD, and CNY use two decimal places.
+The app presents one active wallet at a time, with separate guest and account data. A wallet has a name and one currency; it does not convert between currencies. The original eight currency choices are available. JPY uses whole yen, while MYR, USD, EUR, GBP, AUD, CAD, and CNY use two decimal places.
 
 ## Money, categories, and dates
 
@@ -12,9 +12,17 @@ Dates are calendar values in `YYYY-MM-DD` form. The model rejects impossible dat
 
 The wallet balance always includes all recorded dates. The activity section can show all dates or one selected month. This prevents a filtered month's net change from being mistaken for the wallet's total balance.
 
+## Save destination and unfinished entries
+
+The guest wallet is device-local. A configured Firebase account uses everyday server-confirmed records, with a last-confirmed cache for offline viewing. An earlier Auth-only local account keeps its local storage behavior. Signing in never copies a guest wallet automatically; use the explicit Cloud Wallet preview/confirmation to copy into an unchanged empty account target while preserving the source.
+
+Typing a transaction does not change the wallet balance. Changed fields can be retained in a device-local draft, including incomplete amounts or dates. Reopening offers Resume/Discard and checks the captured financial base before saving. New cloud edits require a connection; an uncertain submitted operation retains its identity until reconciled rather than being automatically retried as another transaction.
+
+The Activity Show/Hide control hides only the header balance. It does not alter amounts, calculations, transaction rows or reports. Appearance and visibility preferences are separate from financial records.
+
 ## Saved-data migration
 
-The current core v5 store uses a separate key. When it is absent, migration checks v4, v3, v2, and the initial v1 preview in that order. It validates the first present source, preserves transaction IDs, dates, amounts, and category spellings, then writes a new copy. The original bytes remain unchanged. Invalid data does not fall back to stale history or reset records. Failed writes are checked against the active saved key before their outcome is reported. See [Budgets and savings goals](BUDGETS_AND_GOALS.md) for the planning fields added in v3 and [Achievements and reminders](ACHIEVEMENTS_AND_REMINDERS.md) for the ownership and milestone fields added in v4.
+The local core v5 store uses a separate key. Everyday Firebase caches and operation journals have separate account/project-bound keys and do not replace older local stores. When it is absent, migration checks v4, v3, v2, and the initial v1 preview in that order. It validates the first present source, preserves transaction IDs, dates, amounts, and category spellings, then writes a new copy. The original bytes remain unchanged. Invalid data does not fall back to stale history or reset records. Failed writes are checked against the active saved key before their outcome is reported. See [Budgets and savings goals](BUDGETS_AND_GOALS.md) for the planning fields added in v3 and [Achievements and reminders](ACHIEVEMENTS_AND_REMINDERS.md) for the ownership and milestone fields added in v4.
 
 Native verification uses a separate synthetic namespace through `EXPO_PUBLIC_TEST_DATA_NAMESPACE`. That test store does not read or migrate any canonical store. The environment variable is for local verification; it is not an account or security boundary.
 
@@ -31,14 +39,12 @@ flowchart LR
     A[Wallet and categories] --> B[Validated transactions]
     B --> C[All-date wallet balance]
     B --> D[Selected-month activity]
-    B --> E[Validated local storage]
-    E --> F[Reload or migrate safely]
+    B --> E[Guest local or account server-confirmed storage]
+    E --> F[Reopen confirmed records or recover an unfinished operation]
 ```
 
 Exercise: rename Food to Meals. The October expenses should remain RM110 and the all-date balance should remain RM780. The labels change; transaction references and amounts do not.
 
-## Checks completed
+## Verification
 
-The full automated suite contains 25 passing tests, including 17 core currency, date, reference, migration, and storage cases. TypeScript passes. Independent review found an unbounded month-navigation edge case; both arrows now clamp and disable at the supported boundaries.
-
-Headless Android checks passed for the initial balance, wallet rename/save/restart, custom category creation, previous-month navigation, explicit fresh-wallet confirmation with JPY, and fresh-wallet persistence. These checks used only an isolated synthetic store. iOS remains unverified.
+Model checks cover currency precision, calendar bounds, stable references, migration and uncertain storage outcomes. The [verification record](../VERIFICATION.md) gives completed counts and native evidence rather than treating an older foundation checkpoint as the current full suite. Android checks do not establish iOS behavior. See [Account access](ACCOUNT_ACCESS.md) for cloud confirmation, offline-cache and identity boundaries.

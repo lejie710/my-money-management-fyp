@@ -2,22 +2,24 @@ const { validDate, CURRENCIES, MAX_AMOUNT_MINOR, MAX_TRANSACTIONS } = require('.
 const VERSION = 'recorded-expense-prophet-v1';
 const MAX_MONEY = MAX_AMOUNT_MINOR * MAX_TRANSACTIONS;
 const MESSAGES = Object.freeze({
+  RATE_LIMITED: 'The selected forecast service reached its request limit. Try again later.',
   BAD_REQUEST: 'The selected monthly history could not be sent.',
   INSUFFICIENT_OR_EXCESS_HISTORY:
     'Prophet needs 8 to 120 complete months. The device forecast remains available.',
   INSUFFICIENT_ACTIVE_HISTORY: 'Prophet needs expenses in at least three completed months.',
-  UNAVAILABLE: 'Prophet is not available from the current companion connection.',
-  UNAUTHORIZED: 'The companion connection changed. Recheck it before requesting Prophet.',
+  UNAVAILABLE: 'Prophet is not available from the configured service.',
+  UNAUTHORIZED:
+    'The forecast connection could not be authorized. Recheck Connections before requesting Prophet.',
   PROVIDER_CHANGED: 'The forecast provider changed. Recheck the connection and request it again.',
   BUSY: 'Prophet is still finishing another request. Wait, then try again.',
   TIMEOUT: 'Prophet exceeded its computation deadline. The device forecast is unchanged.',
   CANCELLED: 'The Prophet request was cancelled.',
   CLEANUP_UNCONFIRMED:
-    'The previous Prophet worker has not confirmed shutdown. Restart the owned companion before retrying.',
+    'The previous forecast has not confirmed shutdown. Recheck the service before retrying.',
   MODEL_FAILED: 'Prophet could not fit this history. The device forecast remains available.',
   INVALID_MODEL_RESPONSE: 'The Prophet response could not be verified.',
   TOO_LARGE: 'The forecast request or response exceeds the supported size.',
-  NETWORK: 'The local Prophet service could not be reached.',
+  NETWORK: 'The configured forecast service could not be reached.',
 });
 class ForecastError extends Error {
   constructor(code) {

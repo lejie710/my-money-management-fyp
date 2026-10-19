@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { Action, Field, FormError } from './components';
 import type { AccountUiController, AccountUiState } from './accountUiTypes';
 import { useAccountOperation } from './useAccountView';
-import { ui } from './theme';
+import { useTheme } from './theme';
 
 export function AccountCredentialsForm({
   mode,
@@ -18,6 +18,7 @@ export function AccountCredentialsForm({
   onBack: () => void;
   onReset: () => void;
 }) {
+  const { colors, ui } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');

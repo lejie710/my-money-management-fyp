@@ -4,7 +4,7 @@ import type { AccountUiState } from './accountUiTypes';
 import type { useCompanionConnection } from './useCompanionConnection';
 import { Action, RowAction, Screen } from './components';
 import { ReceiptEntry } from './ReceiptEntry';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 
 export function ConnectionsScreen({
   accountState,
@@ -17,6 +17,8 @@ export function ConnectionsScreen({
   onReports,
   onForecast,
   onCloudBackup,
+  onCloudWallet,
+  cloudWalletConfigured = false,
 }: {
   accountState: AccountUiState;
   connection: ReturnType<typeof useCompanionConnection>;
@@ -28,7 +30,10 @@ export function ConnectionsScreen({
   onReports(): void;
   onForecast?(): void;
   onCloudBackup?(): void;
+  onCloudWallet?(): void;
+  cloudWalletConfigured?: boolean;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const accountConfigured = accountState.provider === 'configured';
   const receiptProvider =
     connection.phase === 'configured' && connection.binding?.receipt
@@ -47,7 +52,7 @@ export function ConnectionsScreen({
         Connections
       </Text>
       <Text style={[ui.body, ui.smallGap]}>
-        Optional tools for your wallet. Everyday tracking works without a connection.
+        Account storage and tools for your wallet. Guest tracking works without a connection.
       </Text>
       <Text style={[styles.section, ui.gap]} accessibilityRole="header">
         Account
@@ -62,8 +67,19 @@ export function ConnectionsScreen({
           disabled={busy}
           onPress={onAccount}
           testID="connections-account"
-          last={!onCloudBackup}
+          last={!onCloudBackup && !onCloudWallet}
         />
+        {onCloudWallet ? (
+          <RowAction
+            label="Cloud wallet"
+            detail="Save status, local drafts and account storage"
+            icon="wallet"
+            disabled={busy}
+            onPress={onCloudWallet}
+            testID="connections-cloud-wallet"
+            last={!onCloudBackup}
+          />
+        ) : null}
         {onCloudBackup ? (
           <RowAction
             label="Cloud backup"
@@ -77,9 +93,11 @@ export function ConnectionsScreen({
         ) : null}
       </View>
       <Text style={[ui.hint, ui.smallGap]}>
-        {accountConfigured
-          ? 'Wallet records stay on this device until you explicitly back them up. Signing in does not upload or transfer them.'
-          : 'No account service is configured. Your current wallet works without signing in.'}
+        {cloudWalletConfigured
+          ? 'Signed-in changes save to Firebase when connected. Previously downloaded records remain readable offline, and unsaved edits stay as drafts.'
+          : accountConfigured
+            ? 'Wallet records stay on this device until you explicitly back them up. Signing in does not upload or transfer them.'
+            : 'No account service is configured. Your current wallet works without signing in.'}
       </Text>
       <Text style={[styles.section, ui.gap]} accessibilityRole="header">
         Receipts
@@ -90,7 +108,7 @@ export function ConnectionsScreen({
         {!receiptProvider
           ? ' Receipt recognition is not selected. Manual entry is available.'
           : receiptProvider.processing === 'cloud'
-            ? ' Google Cloud Vision receives the selected image through the Windows companion only when you request recognition.'
+            ? ' Google Cloud Vision receives the selected image through your configured service only when you request recognition.'
             : ' Windows OCR runs on the connected computer only when you request recognition.'}
         {' Choosing a photo alone sends nothing.'}
       </Text>
@@ -118,8 +136,8 @@ export function ConnectionsScreen({
         />
       </View>
       <Text style={[ui.hint, ui.smallGap]} testID="connections-assistant-hint">
-        Calculated facts are available without a model. Explanations use only the facts you select
-        and your question.
+        Calculated facts are available without a model. Insights use the selected summaries, your
+        question and up to three earlier exchanges from that conversation.
         {!assistantProvider
           ? ' No assistant provider is selected. Choose a report to review calculated facts.'
           : assistantProvider.processing === 'cloud'
@@ -146,14 +164,15 @@ export function ConnectionsScreen({
         />
       </View>
       <Text style={[ui.hint, ui.smallGap]}>
-        Device estimates work without a service. When configured, Prophet runs on the Windows
-        companion using the selected monthly totals after your explicit request.
+        Prophet uses selected monthly expense totals after your explicit request, on the configured
+        backend or optional Windows helper. Device estimates remain available offline.
       </Text>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  section: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 8 },
-  group: { backgroundColor: colors.surface, borderRadius: 18, overflow: 'hidden' },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    section: { color: colors.muted, fontSize: 14, lineHeight: 20, marginBottom: 8 },
+    group: { backgroundColor: colors.surface, borderRadius: 18, overflow: 'hidden' },
+  });

@@ -4,7 +4,7 @@ import { formatMoney, Ledger, localDate, periodBounds, TransactionType } from '.
 import { periodReport } from '../core/reports';
 import { Action, Choice, Field, FormError, RowAction, Screen } from './components';
 import { displayDate } from './TransactionsScreen';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 import { HealthPanel } from './HealthPanel';
 import { ForecastEntry } from './ForecastEntry';
 import type { ForecastTransportBinding } from '../forecast/client';
@@ -60,6 +60,7 @@ function MoneyRow({
   emphasize?: boolean;
   negative?: boolean;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   return (
     <View style={styles.moneyRow}>
       <View style={styles.rowLabel}>
@@ -92,6 +93,7 @@ function RatioRow({
   formula: string;
   testID: string;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   return (
     <View style={styles.ratioRow}>
       <View style={ui.flex}>
@@ -128,6 +130,7 @@ export function ReportsScreen({
   assistantRequested?: boolean;
   forecastTransportBinding?: ForecastTransportBinding | null;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const [month, setMonth] = useState(() => boundedMonth(localDate().slice(0, 7)));
   const [mode, setMode] = useState<'month' | 'custom'>('month');
   const [applied, setApplied] = useState(() => periodBounds('month', `${month}-01`));
@@ -384,7 +387,7 @@ export function ReportsScreen({
               <RowAction
                 icon="activity"
                 label="Ask about this period"
-                detail="Choose facts for a read-only local explanation."
+                detail="Choose a period for spending insights and saving suggestions."
                 testID="open-report-assistant"
                 onPress={() =>
                   onAssistant({ startDate: applied.startDate, endDate: applied.endDate })
@@ -396,7 +399,7 @@ export function ReportsScreen({
           {assistantRequested ? (
             <Text style={[ui.hint, ui.smallGap]} testID="report-assistant-guidance">
               Choose the period above, then Ask about this period. You can review its calculated
-              facts even when the local model is unavailable.
+              facts even when the assistant service is unavailable.
             </Text>
           ) : null}
           {mode === 'custom' && rangeChanged ? (
@@ -520,80 +523,87 @@ export function ReportsScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  monthBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-  },
-  monthButton: { minHeight: 48, width: 50, alignItems: 'center', justifyContent: 'center' },
-  arrow: { color: colors.purple, fontSize: 30 },
-  monthTitle: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 16,
-    lineHeight: 23,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  appliedRange: { color: colors.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
-  emptyNotice: {
-    marginTop: 20,
-    padding: 18,
-    borderRadius: 16,
-    backgroundColor: colors.accentSoft,
-  },
-  toolGroup: { backgroundColor: colors.surface, borderRadius: 20, overflow: 'hidden' },
-  moneyRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 18 },
-  rowLabel: { flexGrow: 1, flexShrink: 1, flexBasis: '43%' },
-  rowTitle: { color: colors.text, fontSize: 15, lineHeight: 22 },
-  rowAmount: {
-    flexShrink: 1,
-    maxWidth: '100%',
-    marginLeft: 'auto',
-    color: colors.text,
-    fontSize: 17,
-    lineHeight: 25,
-    fontWeight: '500',
-    textAlign: 'right',
-    fontVariant: ['tabular-nums'],
-  },
-  bold: { fontWeight: '700' },
-  emphasizedAmount: { fontWeight: '600', fontSize: 24, lineHeight: 32, letterSpacing: -0.5 },
-  rule: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 18 },
-  currentBalance: {
-    color: colors.muted,
-    fontSize: 18,
-    lineHeight: 26,
-    fontVariant: ['tabular-nums'],
-  },
-  categoryRow: { marginTop: 22 },
-  categoryName: { color: colors.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
-  categoryAmount: {
-    maxWidth: '48%',
-    color: colors.text,
-    fontSize: 16,
-    lineHeight: 23,
-    textAlign: 'right',
-    fontVariant: ['tabular-nums'],
-  },
-  barTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.raised,
-    marginVertical: 10,
-    overflow: 'hidden',
-  },
-  barFill: { height: '100%', borderRadius: 3 },
-  ratioRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 20 },
-  ratioValue: {
-    maxWidth: '47%',
-    color: colors.text,
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    textAlign: 'right',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    monthBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+    },
+    monthButton: { minHeight: 48, width: 50, alignItems: 'center', justifyContent: 'center' },
+    arrow: { color: colors.purple, fontSize: 30 },
+    monthTitle: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 16,
+      lineHeight: 23,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    appliedRange: { color: colors.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
+    emptyNotice: {
+      marginTop: 20,
+      padding: 18,
+      borderRadius: 16,
+      backgroundColor: colors.accentSoft,
+    },
+    toolGroup: { backgroundColor: colors.surface, borderRadius: 20, overflow: 'hidden' },
+    moneyRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 18,
+    },
+    rowLabel: { flexGrow: 1, flexShrink: 1, flexBasis: '43%' },
+    rowTitle: { color: colors.text, fontSize: 15, lineHeight: 22 },
+    rowAmount: {
+      flexShrink: 1,
+      maxWidth: '100%',
+      marginLeft: 'auto',
+      color: colors.text,
+      fontSize: 17,
+      lineHeight: 25,
+      fontWeight: '500',
+      textAlign: 'right',
+      fontVariant: ['tabular-nums'],
+    },
+    bold: { fontWeight: '700' },
+    emphasizedAmount: { fontWeight: '600', fontSize: 24, lineHeight: 32, letterSpacing: -0.5 },
+    rule: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 18 },
+    currentBalance: {
+      color: colors.muted,
+      fontSize: 18,
+      lineHeight: 26,
+      fontVariant: ['tabular-nums'],
+    },
+    categoryRow: { marginTop: 22 },
+    categoryName: { color: colors.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
+    categoryAmount: {
+      maxWidth: '48%',
+      color: colors.text,
+      fontSize: 16,
+      lineHeight: 23,
+      textAlign: 'right',
+      fontVariant: ['tabular-nums'],
+    },
+    barTrack: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.raised,
+      marginVertical: 10,
+      overflow: 'hidden',
+    },
+    barFill: { height: '100%', borderRadius: 3 },
+    ratioRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 20 },
+    ratioValue: {
+      maxWidth: '47%',
+      color: colors.text,
+      fontSize: 16,
+      lineHeight: 24,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+      textAlign: 'right',
+    },
+  });

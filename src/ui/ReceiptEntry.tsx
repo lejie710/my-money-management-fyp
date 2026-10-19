@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppIcon } from './AppIcon';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 import type { useCompanionConnection } from './useCompanionConnection';
 
 export function ReceiptEntry({
@@ -15,6 +15,7 @@ export function ReceiptEntry({
   onOpen(): void;
   compact?: boolean;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const [showDetails, setShowDetails] = useState(false);
   const checking = connection.phase === 'checking';
   const recheckDisabled = busy || !connection.enabled || checking;
@@ -94,7 +95,7 @@ export function ReceiptEntry({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   group: {
     marginTop: 10,
     backgroundColor: colors.surface,

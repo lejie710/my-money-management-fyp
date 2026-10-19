@@ -1,80 +1,97 @@
-# Ask about selected financial records
+# Financial assistant and saved conversations
 
-Reports → Ask about this period opens a read-only explanation panel for the currently applied report dates. The app calculates the facts itself. An explicitly selected local Windows model or OpenAI can explain those facts after an explicit question; it cannot add a transaction, change a budget, adjust a goal or save a forecast.
+Reports > Ask about this period opens the assistant with the report's applied dates. OpenAI is the primary configurable provider for explanations and practical budgeting/saving suggestions. The app supplies calculated summaries; the assistant cannot create a transaction, change a budget or goal, move money or save a forecast.
 
-The calculated facts remain available when no companion is configured or a request fails. Generated wording appears separately from those facts so that its claims can be checked. A model response is an explanation to review, not a replacement for the recorded amounts or a verified financial conclusion.
+The configured backend lets the phone use OpenAI without a Windows companion running beside it. Qwen through Lemonade remains an optional local route. Calculated facts remain readable when no provider is configured or a request fails. An answer is generated wording to review against those facts, not a verified financial conclusion.
 
-## Choose exactly what is included
+## Choose the period and summaries
 
-The initial dates come from the report's applied period. Edit the dates and choose Apply period to use another inclusive range. Invalid date edits preserve the previous facts. Unapplied date edits do not change the question's context; the panel explicitly identifies the period it will use.
+Edit Start date and End date, then choose Apply period. Both dates are inclusive. Invalid edits preserve the previous facts; unapplied text does not silently change a request. The panel identifies the applied dates and currency before Ask.
 
-The base context includes the currency, period boundaries, transaction count, opening balance, income, expenses, debt payments, outflow, net change and closing balance, with defined income-based ratios. Opening balance covers records strictly before the start date. Closing balance adds the selected period's net change. It is different from the wallet's all-date balance when later transactions exist.
+The base context includes the currency, dates, transaction count, opening balance, income, expenses, debt payments, outflow, net change and closing balance, with defined income-based ratios. Opening covers records strictly before the start date. Closing adds the selected period's net change; it can differ from the all-dates wallet balance when later transactions exist.
 
-Five optional groups start off:
+The OpenAI and facts-only Reports entries start with categories, budgets, goal and comparisons selected. The optional local Qwen entry starts with categories only to leave room in its smaller model context. All-dates balance and the illustrative project score start off. Every optional group remains available to select; review those choices before asking:
 
-| Group                      | What is included and why the boundary matters                                                                                                                  |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| All-dates wallet balance   | Includes later records as well as the selected period, so it must not be described as period closing.                                                          |
-| Expense categories         | Up to three largest expense categories. Each share uses total expenses as its denominator, not income or all outflow.                                          |
-| Overlapping budgets        | Up to three plans evaluated over their full own periods, including later records. Their spending is not prorated to the selected report range.                 |
-| Current goal target        | The current target compared with the selected period's closing balance. This is a period-specific comparison, not automatically the current wallet's progress. |
-| Illustrative project score | The existing cash-flow formula and its stated limitations. It is not a validated financial-health score.                                                       |
+| Summary group              | Included facts and their scope                                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Expense categories         | The three largest recorded expense categories and shares of the full expense total                                                 |
+| Overlapping budgets        | Up to three overlapping plans, using each budget's full own period, including later records where applicable                       |
+| Current goal target        | The current configured target compared with the selected period's closing balance; not a separate savings account                  |
+| Previous-period comparison | Calculated income, expense, debt-payment and net changes; category comparisons appear only when category details are also selected |
+| All-dates wallet balance   | The recorded balance across all dates, including records after the selected end date                                               |
+| Illustrative project score | The project's cash-flow formula with its limitations; not a validated financial-health or credit score                             |
 
-The visible fact rows and current question are the model's financial context. The selection itself is an explicit fact, so an omitted goal means that goal details were not supplied, rather than proving no goal exists. Transaction titles, notes, person/contact details, locations, photos and raw receipt text are excluded. Selected category names may appear in an optional group. The whole ledger and earlier model answers are not sent.
+A complete calendar month compares with the preceding calendar month, including February/leap-year differences. Other date ranges compare with the preceding equal number of days. If that earlier range falls outside the supported calendar, comparison is unavailable. Missing recorded entries and partial periods still limit interpretation.
 
-Recorded income of zero is a known value. Income-based ratios are then undefined because their denominator is zero. An empty ledger describes the app's recorded history; it does not prove that a person has no real-world income, debt or expenses.
+Omitting a group means those details were not supplied, not that the wallet contains no such data. Recorded income of zero is a known value; income-based ratios are undefined because their denominator is zero. An empty ledger says nothing about unrecorded real-world finances.
+
+## What is sent
+
+On Ask, the selected provider receives the visible calculated facts, the current question and at most the newest three exchanges from the same conversation. Earlier answers provide conversational context only; current calculated facts govern numerical claims. The model is instructed to suggest practical non-numerical options without inventing new amounts, merchants, causes, recurring subscriptions or missing history.
+
+Automatic assistant context excludes raw transaction titles/notes, contact records, person/place labels, coordinates, photos, raw OCR text and account profile fields. It does not upload the entire ledger. Selected category names are user text, and a typed question can include names or other information the user chooses to enter; the app does not claim that all summaries or questions are anonymous.
+
+The authenticated backend uses the current Firebase identity for access control. That identity is separate from the financial summaries sent to OpenAI. Provider credentials stay in private server configuration. See [Backend setup](../tools/backend/README.md) and the [OpenAI adapter contract](../scripts/companion/assistant/OPENAI.md).
 
 ## Ask, cancel and compare
 
-Enter a question of up to 500 characters and choose Ask. Requests are explicit; opening the panel or loading a connection does not trigger inference. Every question is independent. The panel retains up to three successful explanations while it stays open, but previous replies are not sent back as model context.
+Enter up to 500 characters and choose Ask OpenAI, or the explicitly configured local-model action. Opening the panel, viewing saved history or applying dates does not request inference. A hosted metadata check authenticates the connection; it does not ask OpenAI a financial question.
 
-An answer includes references to the supplied fact rows. Compare its wording with those rows, particularly date scope, category denominators and omitted groups. The host validates a narrow response shape and exact fact identifiers and rejects specific known semantic defects. Those checks can catch malformed or familiar wrong answers; they cannot detect every unsupported conclusion.
+Answers cite supplied fact IDs and are bounded in shape and length. Response checks reject malformed output, invented evidence IDs and specific known scope/write-claim defects. They cannot prove every claim is correct. Compare advice with the displayed period, amounts, denominator, category coverage and omitted groups.
 
-Cancel stops waiting and makes a late answer ineligible for display. Host computation may still finish, so the UI does not claim the native process has already stopped. Retry last question is another explicit request. Clear conversation removes the temporary displayed turns. Closing the panel discards the conversation rather than storing it in a ledger or account profile.
+Cancel prevents a late answer from entering the current conversation. Provider work may already have been processed; cancellation cannot guarantee that a cloud charge is avoided. Retry is a new deliberate request. Authentication, quota, provider-change and timeout errors remain visible; there is no automatic cloud/local fallback.
 
-Changing an applied period, optional group or saved ledger rebuilds the context and clears previous explanations. Replacing the companion connection, changing account/wallet ownership or leaving the active financial state closes the session and invalidates old callbacks. A response that completes just before a transition still has to pass a final ownership/current-context check before display. An open chat is not an unsaved financial draft and does not block account switching.
+Changing the applied period, selected groups, saved wallet figures, owner or provider starts a fresh financial context. A response that settles just before a transition must still pass current-owner/context checks. An open chat is read-only and does not become a financial draft or block account switching.
+
+## Saved conversations
+
+Accepted conversations are stored locally and separately for each account/guest family. They are not synchronized to Firebase and are not included in wallet backups. The limits are:
+
+- Up to 20 saved conversations for an account on this device.
+- The latest 12 exchanges in each conversation.
+- At most the latest three exchanges sent with a follow-up.
+
+Close and reopen the panel to find Saved conversations. View conversation shows its captured dates, wallet, provider, answers and cited facts without making a provider request. Continue is available only when the current wallet, selected summaries and provider match the saved context. If financial records changed, the saved discussion remains historical; return to the current conversation to ask about the new figures.
+
+Start a new conversation clears the active discussion without deleting saved history. Deleting a saved conversation requires a separate confirmation. If saving history fails, the accepted answer stays visible and an explicit retry is offered. A malformed or unreadable history store is retained instead of replaced with an empty one. Uninstalling the app or clearing app storage can remove this local history even when Firebase financial records still exist.
 
 ```mermaid
 flowchart LR
-    A[Applied report period] --> B[App calculates explicit facts]
-    C[Optional groups start off] --> B
-    B --> D[Facts visible without a model]
-    D --> E[Explicit question]
-    E --> F[Explicitly selected local model or OpenAI]
-    F --> G[Shape, facts and current-session checks]
-    G --> H[Separate explanation with fact references]
-    G --> I[Fixed error or discarded stale result]
+    P[Applied dates and selected summaries] --> F[Calculated facts]
+    H[Newest three exchanges in this context] --> Q[Explicit question]
+    F --> Q
+    Q --> B[Authenticated backend]
+    B --> O[Configured OpenAI model]
+    O --> C[Response and current-context checks]
+    C --> A[Answer with cited facts]
+    A --> D[Device-local conversation history]
 ```
 
-## Connect the local Windows model
+## Configure the primary OpenAI route
 
-The [public companion guide](../scripts/companion/README.md) is the setup authority for exact asset versions, hashes, offline preparation, startup, private Android pairing and owned shutdown. Assistant mode uses the same private development connection as receipt OCR. An OCR-only run deliberately has no model endpoint; it cannot answer a question merely because receipt recognition works.
+Follow [Backend setup](../tools/backend/README.md) to configure Firebase authentication, HTTPS, durable usage limits and a private OpenAI key/model. The mobile build receives only its selected Firebase client configuration and the backend's exact origin/project identity. The model must support the adapter's Chat Completions structured-output contract; no original credential or specific account entitlement is assumed.
 
-After preparing the pinned local assets, explicitly start assistant mode from the app folder:
+The backend is source for a future deployment. Configuring a compatible model name is not proof of real account access, response quality, availability or billing behavior. The repository does not perform a deployment or paid request as part of app setup.
+
+## Optional local Qwen route
+
+The [Windows companion guide](../scripts/companion/README.md) documents pinned assets, integrity checks, private Android pairing and owned shutdown. It runs the model on the connected Windows computer, not on the phone. Its requirements are separate from the Android app; OCR-only mode deliberately has no assistant.
+
+The pinned local model has a 2,048-token context. Categories-only is its initial summary selection; selecting additional groups or carrying longer follow-ups can exceed that limit. A context-limit error offers starting a new conversation, selecting fewer summaries or shortening the question. The helper does not silently truncate facts or history.
+
+After preparing the documented assets, an explicit local assistant run uses:
 
 ```powershell
 python scripts/companion/run_companion.py --mode assistant --run-name assistant-001 --node "C:\path\to\node.exe"
 ```
 
-Follow the companion guide to verify that run and pair the exact installed debug emulator. Enable `EXPO_PUBLIC_LOCAL_COMPANION=1` before starting a new Metro process. After pairing or replacing the helper, open Wallet > Tools > Connections, choose Setup beside Review receipt, choose Recheck, and reopen the assistant from Reports. Setup also reveals the full connection explanation; the Recheck control's accessible name is Recheck connection. The app reads only the known bounded private connection file; the token is not put in UI, command arguments, a ledger or a public environment variable.
+Enable the documented local companion mode before starting Metro, pair the verified debug emulator and use Connections > Recheck connection. Hosted service selection takes precedence when explicitly configured; an invalid hosted setup does not silently choose the companion. A local failure does not download another model or select OpenAI automatically.
 
-“Local connection configured” means valid connection details are present. Availability is tested by Ask. “Local model responded” means that request returned an accepted response; it does not mean the answer is correct. Missing model assets, unsupported output, memory pressure, timeout or stopped service leave the deterministic facts readable and require deliberate recovery/retry. There is no cloud fallback or automatic model download.
-
-The model runs on the Windows computer, not on the phone. The public startup check requires at least 6 GiB of available physical memory and stops its owned run after two consecutive one-second samples below 1 GiB. That floor is a conservative check, not a promise that every combination of emulator, editor and other programs will fit. The helper does not close unrelated programs or automatically restart after a memory stop. Its exact native model settings and process-ownership rules are documented in the companion guide.
-
-## Optional OpenAI provider
-
-Select OpenAI explicitly in the companion's private server configuration and pair the resulting version 2 connection. The provider credential stays on the Windows host. The app receives only the provider/model descriptor and private companion token. See the [OpenAI contract](../scripts/companion/assistant/OPENAI.md) and [companion guide](../scripts/companion/README.md).
-
-The panel labels **Ask OpenAI** and explains the cloud destination before the action. The same visible facts and current question are sent; earlier conversation, raw transactions, photos and contact/location details remain excluded. The configured model can resolve to a returned model snapshot; transport validation preserves both values and rejects provider substitutions.
-
-Opening the panel and rechecking connection do not contact OpenAI. Configuration does not establish reachability. Authentication errors, rate limits, refusals and incomplete responses leave calculated facts available and require deliberate recovery/retry. Cancellation cannot undo work the provider has already processed or guarantee that charges are avoided. There is no automatic cloud fallback.
-
-Provider changes clear the active context/session just like connection and wallet changes. The same known-defect checks reject write claims and familiar scope errors. Offline adapter/route/client/UI tests use invented models and responses; live OpenAI account access, model quality and Android cloud-provider execution require separate evidence.
+The older Windows-companion OpenAI route is also retained for local development. Its provider key remains on that host and is never embedded in the phone. For independent phone use, the deployable backend is the intended route.
 
 ## Worked example
 
-A selected October period opens at RM750.00, records RM2,000.00 income, RM250.00 expenses and RM300.00 debt payments, and closes at RM2,200.00:
+October opens at RM750.00, records RM2,000.00 income, RM250.00 expenses and RM300.00 debt payments, and closes at RM2,200.00:
 
 ```text
 Outflow = 250 + 300 = RM550.00
@@ -82,18 +99,12 @@ Net change = 2,000 - 550 = RM1,450.00
 Period closing = 750 + 1,450 = RM2,200.00
 ```
 
-If later records make the all-date wallet balance RM2,680.00, enabling that optional fact allows a question about why the two balances differ. It does not move those later records into October. Similarly, recorded debt payments describe money paid out; they do not establish the remaining loan principal.
+The assistant may explain those calculated figures and suggest reviewing an included category budget. It should not invent how much could be saved at a particular merchant. If later entries make the all-dates balance RM2,680.00, enabling that group can explain the difference without moving later records into October.
 
-Exercise: a period has recorded income RM0.00 and outflow RM200.00, while the goal option is off. What should an explanation say if asked for the savings ratio and progress toward the goal?
+Exercise: recorded income is RM0.00 and outflow RM200.00, with goal details disabled. What can the assistant say about a savings ratio and goal progress?
 
-Answer: income is recorded as zero, so an income-based ratio is undefined. Goal details were not included, so progress toward a goal cannot be calculated from the supplied context. The model should not call zero income “missing data,” invent a ratio or conclude that no goal is configured.
+Answer: the ratio is undefined because recorded income is zero. Goal details were not selected, so the supplied context cannot establish progress toward a goal. It should neither call zero income missing data nor conclude that no goal exists.
 
-## Evidence and limitations
+## Evidence and limits
 
-The earlier local-model restoration gate recorded 753 normally isolated JavaScript tests and TypeScript. The historical local-provider evidence below does not establish live OpenAI verification. Source-bound tests and independent review cover selection, currentness, failure recovery, modal-session replacement and account transitions. A separate actual private Windows model evaluation passed 18 responses across nine fixed scenarios repeated twice, including zero income, balance scopes, JPY, negative goal progress and a hostile prompt. The nine distinct final answers were also read against a fixed factual rubric.
-
-Earlier runs failed: numeric fact identifiers were rejected, and a later structurally valid run still used incorrect opening-balance scope. The final schema/prompt changes addressed those observed failures; the evaluation is bounded regression evidence, not a general accuracy score. The final run's median request time was about 19 seconds on the tested shared development workload, with individual requests about 11–33 seconds. Those timings are observations, not a performance promise.
-
-The public assistant-mode helper has started with its actual local model load verified. Through real private pairing, the Android app displayed an explanation that correctly distinguished the example's MYR750.00 opening, MYR2,200.00 period closing and MYR2,680.00 all-date balance, with cited facts. This verifies that request path for the synthetic example; the earlier OCR gate alone did not establish assistant inference.
-
-The five recorded Android checks also cover Cancel during a real second request and close/reopen with a visible fresh modal and no prior answers. Direct comparison confirmed the ten-record wallet bytes were unchanged. Final shutdown confirmed the owned processes stopped, requests drained and connection/pairing cleared without a failed outcome. Native account transitions during an assistant request, broader questions, full large-text coverage, physical devices and iOS remain separate limits. See [Verification](../VERIFICATION.md) for the precise completed scope and retained failed evaluation iterations.
+[Verification](../VERIFICATION.md) records the exact source gates, Android checks and provider evidence. Earlier local Qwen evaluations and the local-model gallery frame used real local inference; they do not verify OpenAI. Injected OpenAI responses exercise contract, ownership, cancellation and display behavior without contacting the provider. Live OpenAI access/model quality and a deployed backend remain unverified. The current date/comparison/history flow requires its own recorded native evidence; an older screenshot is not proof of those additions.

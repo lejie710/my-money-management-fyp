@@ -257,7 +257,7 @@ test("Lemonade adapter uses authenticated real API routes and exact pinned-templ
         request.response_format,
         responseFormatForPayload(payload()),
       );
-      assert.equal(request.max_tokens, 160);
+      assert.equal(request.max_tokens, 512);
       return json(raw());
     },
   });

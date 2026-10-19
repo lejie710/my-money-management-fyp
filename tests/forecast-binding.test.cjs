@@ -67,9 +67,12 @@ test('actual App binds forecast Reports to the full confirmed owner and injected
     'react-native': native,
     './src/ui/useAccountRoot': { useAccountRoot: () => account },
     './src/ui/components': { Action: 'Action', FormError: 'FormError', Sheet: 'Sheet' },
-    './src/ui/theme': { ui: {}, colors: {} },
+    './src/ui/theme': require('./helpers/theme-stub.cjs').themeStub,
+    './src/ui/ThemeProvider': { ThemeProvider: 'ThemeProvider' },
     './src/ui/AppIcon': { AppIcon: 'AppIcon' },
     './src/ui/useCloudBackup': { useCloudBackup: () => ({ controller: Object.freeze({}) }) },
+    './src/ui/CloudWalletScreen': { CloudWalletScreen: 'CloudWalletScreen' },
+    './src/drafts/transactionDrafts': require('../src/drafts/transactionDrafts'),
     './src/ui/CloudBackupScreen': { CloudBackupScreen: 'CloudBackupScreen' },
     './src/ui/TransactionEditor': {
       TransactionEditor: 'TransactionEditor',
@@ -85,7 +88,7 @@ test('actual App binds forecast Reports to the full confirmed owner and injected
         react: host.react,
         'react-native': native,
         './components': { Action: 'Action' },
-        './theme': { colors: {}, ui: {} },
+        './theme': require('./helpers/theme-stub.cjs').themeStub,
       }).canShowAccountWallet,
     },
     './legacy/assets/images/money.png': 0,
@@ -109,7 +112,7 @@ test('actual App binds forecast Reports to the full confirmed owner and injected
     'ConnectionsScreen',
   ])
     imports[`./src/ui/${name}`] = { [name]: name };
-  const App = loadTsSource(path.join(__dirname, '../App.tsx'), imports).default;
+  const App = loadTsSource(path.join(__dirname, '../App.tsx'), imports).AppContent;
   const render = () => host.render(App);
   byId(render(), 'tab-reports').props.onPress();
   let screen = find(render(), (node) => node.type === 'ReportsScreen');
@@ -230,7 +233,7 @@ test('actual Reports preserves applied export/assistant range while forecast rec
       Screen: 'Screen',
     },
     './TransactionsScreen': { displayDate: (value) => value },
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
     './HealthPanel': { HealthPanel: 'HealthPanel' },
     './ForecastEntry': { ForecastEntry: 'ForecastEntry' },
   }).ReportsScreen;

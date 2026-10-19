@@ -16,6 +16,47 @@ service cloud.firestore {
     && d.snapshotHash is string && d.snapshotHash.matches('[a-f0-9]{64}')
     && d.includesPhotos is bool && (d.includesPhotos || d.photoCount == 0);
   }
+  function walletScope(id) { return id == 'main' || id.matches('test-[a-f0-9]{64}'); }
+  function walletOperation(id) { return id.matches('wallet-[a-z0-9-]{16,96}'); }
+  function validWallet(uid) {
+   let d = request.resource.data;
+   return d.keys().hasOnly(['version','ownerUid','revision','operationId','updatedAtMs','payload','payloadHash'])
+    && d.keys().hasAll(['version','ownerUid','revision','operationId','updatedAtMs','payload','payloadHash'])
+    && d.version == 1 && d.ownerUid == uid
+    && d.revision is int && d.revision >= 1 && d.revision <= 9007199254740990
+    && d.operationId is string && walletOperation(d.operationId)
+    && d.updatedAtMs is int && d.updatedAtMs >= 0 && d.updatedAtMs <= 8640000000000000
+    && d.payload is string && d.payload.size() > 0 && d.payload.size() <= 786432
+    && d.payloadHash is string && d.payloadHash.matches('[a-f0-9]{64}');
+  }
+  function matchingReceipt(uid, walletId) {
+   let d = request.resource.data;
+   let receipt = getAfter(/databases/$(database)/documents/users/$(uid)/wallets/$(walletId)/operations/$(d.operationId)).data;
+   return receipt.ownerUid == uid && receipt.operationId == d.operationId
+    && receipt.revision == d.revision && receipt.payloadHash == d.payloadHash;
+  }
+  match /users/{uid}/wallets/{walletId} {
+   allow read: if owner(uid) && walletScope(walletId);
+   allow create: if owner(uid) && walletScope(walletId) && validWallet(uid)
+    && request.resource.data.revision == 1 && matchingReceipt(uid, walletId);
+   allow update: if owner(uid) && walletScope(walletId) && validWallet(uid)
+    && request.resource.data.revision == resource.data.revision + 1 && matchingReceipt(uid, walletId);
+   allow delete: if false;
+   match /operations/{operationId} {
+    allow read: if owner(uid) && walletScope(walletId);
+    allow create: if owner(uid) && walletScope(walletId) && walletOperation(operationId)
+     && request.resource.data.keys().hasOnly(['version','ownerUid','operationId','revision','payloadHash'])
+     && request.resource.data.keys().hasAll(['version','ownerUid','operationId','revision','payloadHash'])
+     && request.resource.data.version == 1 && request.resource.data.ownerUid == uid
+     && request.resource.data.operationId == operationId
+     && request.resource.data.revision is int && request.resource.data.revision >= 1
+     && request.resource.data.payloadHash is string && request.resource.data.payloadHash.matches('[a-f0-9]{64}')
+     && getAfter(/databases/$(database)/documents/users/$(uid)/wallets/$(walletId)).data.operationId == operationId
+     && getAfter(/databases/$(database)/documents/users/$(uid)/wallets/$(walletId)).data.revision == request.resource.data.revision
+     && getAfter(/databases/$(database)/documents/users/$(uid)/wallets/$(walletId)).data.payloadHash == request.resource.data.payloadHash;
+    allow update, delete: if false;
+   }
+  }
   match /users/{uid}/walletBackups/{id} {
    allow read: if owner(uid);
    allow create: if owner(uid) && validIndex(id);

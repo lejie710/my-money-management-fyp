@@ -11,7 +11,7 @@ import {
   updateWallet,
 } from '../core/model';
 import { Action, Choice, Field, FormError, RowAction, Screen, Sheet } from './components';
-import { colors, ui } from './theme';
+import { useTheme, useThemedStyles, type ThemeColors } from './theme';
 import { SaveLedger } from './useLedger';
 
 function CurrencyChoices({
@@ -23,6 +23,7 @@ function CurrencyChoices({
   onChange: (currency: Currency) => void;
   disabled: boolean;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   return (
     <View style={[ui.row, { flexWrap: 'wrap', gap: 8 }]}>
       {CURRENCIES.map((item) => (
@@ -41,6 +42,7 @@ function CurrencyChoices({
 
 type Props = {
   ledger: Ledger;
+  cloudAccount?: boolean;
   saving: boolean;
   saveError: string;
   onSave: SaveLedger;
@@ -49,6 +51,7 @@ type Props = {
 
 export function WalletScreen({
   ledger,
+  cloudAccount = false,
   saving,
   saveError,
   onSave,
@@ -69,6 +72,8 @@ export function WalletScreen({
   showAccountShortcut?: boolean;
   onOpenConnections?: () => void;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
+  const appearanceSettings = useTheme();
   const [name, setName] = useState(ledger.wallet.name);
   const [currency, setCurrency] = useState<Currency>(ledger.wallet.currency);
   const [error, setError] = useState('');
@@ -84,7 +89,9 @@ export function WalletScreen({
     try {
       await onSave(
         updateWallet(ledger, { name, currency }),
-        'Wallet settings saved on this device.',
+        cloudAccount
+          ? 'Wallet settings confirmed by Firebase.'
+          : 'Wallet settings saved on this device.',
       );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Check the wallet details.');
@@ -166,6 +173,45 @@ export function WalletScreen({
           </View>
         </View>
         <Text style={styles.sectionLabel} accessibilityRole="header">
+          Appearance
+        </Text>
+        <View style={styles.details} testID="appearance-settings">
+          <Text style={ui.body}>Follow your device or choose a look for this app.</Text>
+          <View style={[ui.row, ui.smallGap, { flexWrap: 'wrap' }]}>
+            {(['system', 'light', 'dark'] as const).map((value) => (
+              <Choice
+                key={value}
+                label={value === 'system' ? 'System' : value === 'light' ? 'Light' : 'Dark'}
+                selected={appearanceSettings.appearance === value}
+                disabled={
+                  !appearanceSettings.preferencesReady || appearanceSettings.preferencesSaving
+                }
+                onPress={() => {
+                  void appearanceSettings.setAppearance(value);
+                }}
+                testID={`appearance-${value}`}
+              />
+            ))}
+          </View>
+          <Text style={[ui.hint, ui.smallGap]}>
+            Saved on this device. Changing appearance keeps open entries and financial records
+            intact.
+          </Text>
+          <FormError message={appearanceSettings.preferenceError} testID="appearance-error" />
+          {!appearanceSettings.preferencesReady && appearanceSettings.preferenceError ? (
+            <View style={ui.smallGap}>
+              <Action
+                label="Retry display preferences"
+                secondary
+                onPress={() => {
+                  void appearanceSettings.retryPreferences();
+                }}
+                testID="appearance-retry"
+              />
+            </View>
+          ) : null}
+        </View>
+        <Text style={styles.sectionLabel} accessibilityRole="header">
           Tools
         </Text>
         <View style={styles.tools}>
@@ -234,12 +280,15 @@ export function WalletScreen({
           />
         </View>
         <Text style={styles.storageNote}>
-          Records stay on this device. Uninstalling the app or clearing its storage can remove them.
+          {cloudAccount
+            ? 'Confirmed wallet records and attached photos are stored in Firebase. Unsaved drafts and conversation history stay on this device.'
+            : 'Records stay on this device. Uninstalling the app or clearing its storage can remove them.'}
         </Text>
       </Screen>
       {freshOpen ? (
         <FreshWallet
           ledger={ledger}
+          cloudAccount={cloudAccount}
           saving={saving}
           saveError={saveError}
           onSave={onSave}
@@ -251,79 +300,82 @@ export function WalletScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  group: {
-    marginTop: 20,
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-  },
-  sectionLabel: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '500',
-    marginTop: 24,
-    marginBottom: 9,
-    paddingHorizontal: 4,
-  },
-  details: {
-    backgroundColor: colors.surface,
-    padding: 20,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-  },
-  balanceRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    columnGap: 12,
-    rowGap: 6,
-    paddingBottom: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.separator,
-  },
-  balanceLabel: { color: colors.muted, fontSize: 13, lineHeight: 19 },
-  balanceValue: {
-    color: colors.text,
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    flexShrink: 1,
-  },
-  tools: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-  },
-  resetSection: {
-    marginTop: 30,
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-  },
-  storageNote: {
-    color: colors.muted,
-    fontSize: 12,
-    lineHeight: 18,
-    paddingHorizontal: 4,
-    marginTop: 14,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    group: {
+      marginTop: 20,
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      borderCurve: 'continuous',
+      overflow: 'hidden',
+    },
+    sectionLabel: {
+      color: colors.muted,
+      fontSize: 14,
+      lineHeight: 20,
+      fontWeight: '500',
+      marginTop: 24,
+      marginBottom: 9,
+      paddingHorizontal: 4,
+    },
+    details: {
+      backgroundColor: colors.surface,
+      padding: 20,
+      borderRadius: 18,
+      borderCurve: 'continuous',
+    },
+    balanceRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      columnGap: 12,
+      rowGap: 6,
+      paddingBottom: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.separator,
+    },
+    balanceLabel: { color: colors.muted, fontSize: 13, lineHeight: 19 },
+    balanceValue: {
+      color: colors.text,
+      fontSize: 20,
+      lineHeight: 28,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+      flexShrink: 1,
+    },
+    tools: {
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      borderCurve: 'continuous',
+      overflow: 'hidden',
+    },
+    resetSection: {
+      marginTop: 30,
+      backgroundColor: colors.surface,
+      borderRadius: 18,
+      borderCurve: 'continuous',
+      overflow: 'hidden',
+    },
+    storageNote: {
+      color: colors.muted,
+      fontSize: 12,
+      lineHeight: 18,
+      paddingHorizontal: 4,
+      marginTop: 14,
+    },
+  });
 
 function FreshWallet({
   ledger,
+  cloudAccount = false,
   saving,
   saveError,
   onSave,
   onClose,
   clearSaveError,
 }: Props & { onClose: () => void }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const [name, setName] = useState('My wallet');
   const [currency, setCurrency] = useState<Currency>(ledger.wallet.currency);
   const [error, setError] = useState('');
@@ -333,7 +385,14 @@ function FreshWallet({
     if (saving || !confirmed) return;
     try {
       const next = createEmptyLedger({ name, currency });
-      if (await onSave(next, 'Your empty local wallet is ready. Add a transaction to begin.'))
+      if (
+        await onSave(
+          next,
+          cloudAccount
+            ? 'Your empty Firebase wallet is confirmed. Add a transaction to begin.'
+            : 'Your empty local wallet is ready. Add a transaction to begin.',
+        )
+      )
         onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Check the new wallet details.');
@@ -342,6 +401,13 @@ function FreshWallet({
 
   return (
     <Sheet title="Start fresh" busy={saving} onClose={onClose}>
+      {cloudAccount ? (
+        <Text style={[ui.error, ui.gap]} testID="fresh-cloud-disclosure">
+          This replaces the wallet in Firebase for this account, including what other devices
+          retrieve. It does not create a second wallet. Create a separate backup first if you need a
+          recovery copy.
+        </Text>
+      ) : null}
       <Text style={[ui.body, { marginTop: 14 }]}>
         Replace “{ledger.wallet.name}” and its {ledger.transactions.length}{' '}
         {ledger.transactions.length === 1 ? 'transaction' : 'transactions'} with an empty wallet.

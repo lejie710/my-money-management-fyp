@@ -3,7 +3,7 @@ import { Keyboard, StyleSheet, Text, View } from 'react-native';
 import { Currency, formatMoney, Ledger } from '../core/model';
 import { ExpenseForecast, forecastRecordedExpenses, FORECAST_METHODS } from '../core/forecast';
 import { Action, Choice, Field, FormError, Sheet } from './components';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 import { useProphetForecast } from './useProphetForecast';
 import type { ForecastTransportBinding } from '../forecast/client';
 
@@ -87,6 +87,7 @@ function AmountRow({
   testID: string;
   tone?: 'history' | 'forecast' | 'partial';
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   return (
     <View style={styles.amountRow}>
       <View style={styles.rowHeading}>
@@ -125,6 +126,8 @@ export function ForecastSheet({
   transportBinding?: ForecastTransportBinding | null;
   onClose: () => void;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
+  const cloudProphet = transportBinding?.provider.processing === 'cloud';
   const [first] = useState(() => initial(ledger, initialAsOfDate));
   const [applied, setApplied] = useState<Applied | null>(first.applied);
   const [date, setDate] = useState(initialAsOfDate);
@@ -201,8 +204,8 @@ export function ForecastSheet({
     >
       <Text style={[ui.body, ui.smallGap]}>
         Uses expense entries, including receipt expenses. Income and debt payments do not enter
-        these projections. The device calculation works offline. Optional Prophet runs on your
-        connected Windows host. Neither creates transactions.
+        these projections. Configured Prophet analyses selected monthly totals. The device estimate
+        is also available offline. Neither creates transactions.
       </Text>
       <Field
         label="As-of date"
@@ -332,7 +335,7 @@ export function ForecastSheet({
       {transportBinding ? (
         <View style={[ui.card, ui.gap]} testID="prophet-panel">
           <Text style={ui.heading} accessibilityRole="header">
-            Prophet comparison
+            Prophet expense forecast
           </Text>
           <Text style={[ui.body, ui.smallGap]}>
             Request a second method using only the applied currency, dates, and completed monthly
@@ -343,9 +346,20 @@ export function ForecastSheet({
               {prophet.unavailable}
             </Text>
           ) : null}
+          <Text style={[ui.hint, ui.smallGap]} testID="prophet-processing">
+            {cloudProphet
+              ? 'When you run Prophet, completed monthly expense totals are sent to your configured backend. Individual entries, notes and photos are excluded.'
+              : 'When you run local Prophet, completed monthly expense totals are processed on your connected Windows computer.'}
+          </Text>
           <View style={ui.smallGap}>
             <Action
-              label={prophet.busy ? 'Fitting monthly history…' : 'Run local Prophet'}
+              label={
+                prophet.busy
+                  ? 'Fitting monthly history…'
+                  : cloudProphet
+                    ? 'Run Prophet forecast'
+                    : 'Run local Prophet'
+              }
               disabled={!prophet.canRun}
               onPress={() => {
                 void prophet.run();
@@ -375,17 +389,18 @@ export function ForecastSheet({
           {prophet.response ? (
             <View style={ui.smallGap} testID="prophet-result">
               <Text style={ui.body}>
-                Prophet · local Windows · {prophet.response.trainingMonths} completed months through{' '}
+                Prophet · {cloudProphet ? 'configured backend' : 'local Windows'} ·{' '}
+                {prophet.response.trainingMonths} completed months through{' '}
                 {prophet.response.trainingThroughMonth}
               </Text>
               <Text style={[ui.hint, ui.smallGap]}>
-                Linear model with no seasonal components or prediction intervals. This result has not
-                replaced the device method or its historical comparison.
+                Linear model with no seasonal components or prediction intervals. The separate
+                device estimate and its historical error do not establish Prophet accuracy.
               </Text>
               {prophet.response.hasNegativePredictions ? (
                 <Text style={[ui.error, ui.smallGap]} testID="prophet-negative">
-                  The model produced negative estimates. They are preserved and labelled model output,
-                  not possible recorded expense entries.
+                  The model produced negative estimates. They are preserved and labelled model
+                  output, not possible recorded expense entries.
                 </Text>
               ) : null}
               {prophet.response.forecast.map((row) => (
@@ -610,31 +625,32 @@ export function ForecastSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  navigation: { gap: 8 },
-  amountRow: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: 4,
-  },
-  rowHeading: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  label: { color: colors.text, fontSize: 14, lineHeight: 21, flexShrink: 1 },
-  amount: {
-    color: colors.text,
-    fontSize: 17,
-    lineHeight: 25,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    flexShrink: 1,
-  },
-  projected: { color: colors.green },
-  partial: { color: colors.purple },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    navigation: { gap: 8 },
+    amountRow: {
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 4,
+    },
+    rowHeading: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      gap: 8,
+    },
+    label: { color: colors.text, fontSize: 14, lineHeight: 21, flexShrink: 1 },
+    amount: {
+      color: colors.text,
+      fontSize: 17,
+      lineHeight: 25,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+      flexShrink: 1,
+    },
+    projected: { color: colors.green },
+    partial: { color: colors.purple },
+  });

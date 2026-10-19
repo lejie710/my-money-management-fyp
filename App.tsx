@@ -20,7 +20,8 @@ import { ReportsScreen } from './src/ui/ReportsScreen';
 import { LoanCalculatorScreen } from './src/ui/LoanCalculatorScreen';
 import { AchievementsScreen } from './src/ui/AchievementsScreen';
 import { RemindersScreen } from './src/ui/RemindersScreen';
-import { colors, ui } from './src/ui/theme';
+import { useThemedStyles, type ThemeColors } from './src/ui/theme';
+import { ThemeProvider } from './src/ui/ThemeProvider';
 import { MapPlacePicker } from './src/ui/MapPlacePicker';
 import { useAccountRoot } from './src/ui/useAccountRoot';
 import { AccountAccessGate, canShowAccountWallet } from './src/ui/AccountAccessGate';
@@ -35,6 +36,8 @@ import { AppIcon, type IconName } from './src/ui/AppIcon';
 import { ConnectionsScreen } from './src/ui/ConnectionsScreen';
 import { useCloudBackup } from './src/ui/useCloudBackup';
 import { CloudBackupScreen } from './src/ui/CloudBackupScreen';
+import { CloudWalletScreen } from './src/ui/CloudWalletScreen';
+import { createTransactionDraftStore } from './src/drafts/transactionDrafts';
 import type { ForecastTransportBinding } from './src/forecast/client';
 
 type Tab =
@@ -48,6 +51,7 @@ type Tab =
   | 'account'
   | 'connections'
   | 'cloud-backup'
+  | 'cloud-wallet'
   | 'reminders';
 const tabs: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'transactions', label: 'Activity', icon: 'activity' },
@@ -57,6 +61,15 @@ const tabs: { id: Tab; label: string; icon: IconName }[] = [
 ];
 
 export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
+
+export function AppContent() {
+  const { colors, ui, styles, mode } = useThemedStyles(createStyles);
   const [tab, setTab] = useState<Tab>('transactions');
   const [assistantAccessRequested, setAssistantAccessRequested] = useState(false);
   const [editor, setEditor] = useState<{ transaction?: Transaction; sessionId: string } | null>(
@@ -82,6 +95,42 @@ export default function App() {
     },
   });
   const { finance, photos, reminders, exports, companion, receipts, assistant } = account;
+  const cloudWallet = account.cloudWallet;
+  const editorDraftStore = useMemo(
+    () =>
+      editor && finance.ledger && account.deviceStorage
+        ? createTransactionDraftStore(account.deviceStorage, {
+            family: finance.family,
+            incarnationId: finance.ledger.wallet.incarnationId,
+            transactionId: editor.transaction?.id ?? null,
+          })
+        : undefined,
+    [
+      account.deviceStorage,
+      finance.family,
+      finance.ledger?.wallet.incarnationId,
+      editor?.sessionId,
+      editor?.transaction?.id,
+    ],
+  );
+  const activeOwner = finance.ownerToken;
+  const currentOwner = () => {
+    const state = finance.getIdentityState();
+    return (
+      !!activeOwner &&
+      state.ownerToken === activeOwner &&
+      !state.identityPending &&
+      !state.uncertain &&
+      canShowAccountWallet(account.controller.getSnapshot(), activeOwner)
+    );
+  };
+  const openCloudWallet = () => {
+    if (!cloudWallet?.controller || saving || editorRef.current || receipts.hasOpenDraft()) return;
+    exports.close();
+    assistant.close();
+    void receipts.close();
+    setTab('cloud-wallet');
+  };
   const cloud = useCloudBackup({
     finance,
     accountState: account.accountState,
@@ -116,7 +165,8 @@ export default function App() {
     tab === 'reminders' ||
     tab === 'account' ||
     tab === 'connections' ||
-    tab === 'cloud-backup';
+    tab === 'cloud-backup' ||
+    tab === 'cloud-wallet';
   const selectedTab = isWalletSubpage ? 'wallet' : tab;
   const accountConfigured = account.accountState.provider === 'configured';
   const receiptConfigured = companion.phase === 'configured' && Boolean(companion.binding?.receipt);
@@ -188,7 +238,7 @@ export default function App() {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (!isWalletSubpage) return false;
       if (!saving && !account.accountState.busy)
-        setTab(tab === 'cloud-backup' ? 'connections' : 'wallet');
+        setTab(tab === 'cloud-backup' || tab === 'cloud-wallet' ? 'connections' : 'wallet');
       return true;
     });
     return () => subscription.remove();
@@ -196,9 +246,15 @@ export default function App() {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
       {tab === 'account' ? (
         <AccountScreen controller={account.controller} onBack={() => setTab('wallet')} />
+      ) : tab === 'cloud-wallet' && cloudWallet?.controller ? (
+        <CloudWalletScreen
+          controller={cloudWallet.controller}
+          onBack={() => setTab('connections')}
+          onAccount={() => setTab('account')}
+        />
       ) : (
         <>
           <AccountAccessGate
@@ -208,6 +264,7 @@ export default function App() {
               void account.controller.retry();
             }}
             onSignOut={() => setTab('account')}
+            onCloudRecovery={cloudWallet?.state.signedIn ? () => setTab('cloud-wallet') : undefined}
           >
             {loading ? (
               <View style={styles.center}>
@@ -266,6 +323,21 @@ export default function App() {
                       </Text>
                     </Pressable>
                   </View>
+                  {cloudWallet?.state.signedIn && cloudWallet.state.readOnly ? (
+                    <View style={ui.smallGap} testID="cloud-wallet-status-banner">
+                      <Text style={ui.hint}>
+                        {cloudWallet.state.message ||
+                          'Cloud records need a connection check. Your drafts are retained.'}
+                      </Text>
+                      <Action
+                        label="Check cloud wallet"
+                        secondary
+                        disabled={saving}
+                        onPress={openCloudWallet}
+                        testID="open-cloud-wallet-recovery"
+                      />
+                    </View>
+                  ) : null}
                   {status && !idleStatus ? (
                     <Text
                       style={styles.status}
@@ -399,6 +471,8 @@ export default function App() {
                   ) : null}
                   {tab === 'cloud-backup' ? (
                     <CloudBackupScreen
+                      liveWallet={cloudWallet?.state.configured ?? false}
+                      onCloudWallet={openCloudWallet}
                       key={finance.ownerToken ?? 'unconfigured'}
                       controller={cloud.controller}
                       onBack={() => setTab('connections')}
@@ -407,6 +481,8 @@ export default function App() {
                   ) : null}
                   {tab === 'connections' ? (
                     <ConnectionsScreen
+                      cloudWalletConfigured={cloudWallet?.state.configured ?? false}
+                      onCloudWallet={cloudWallet?.state.configured ? openCloudWallet : undefined}
                       accountState={account.accountState}
                       connection={companion}
                       busy={saving || account.accountState.busy}
@@ -441,6 +517,7 @@ export default function App() {
                   ) : null}
                   {tab === 'wallet' ? (
                     <WalletScreen
+                      cloudAccount={cloudWallet?.state.signedIn ?? false}
                       showAccountShortcut={accountConfigured}
                       onOpenConnections={() => {
                         clearSaveError();
@@ -497,6 +574,16 @@ export default function App() {
                   ) : null}
                   {tab === 'plan' ? (
                     <PlanScreen
+                      draftContext={
+                        account.deviceStorage
+                          ? {
+                              deviceStorage: account.deviceStorage,
+                              family: finance.family,
+                              incarnationId: ledger.wallet.incarnationId,
+                              isCurrent: currentOwner,
+                            }
+                          : undefined
+                      }
                       ledger={ledger}
                       saving={saving}
                       saveError={saveError}
@@ -542,6 +629,11 @@ export default function App() {
                 </View>
                 {editor ? (
                   <TransactionEditor
+                    cloudAccount={cloudWallet?.state.signedIn ?? false}
+                    draftStore={editorDraftStore}
+                    isCurrent={() =>
+                      editorRef.current?.sessionId === editor.sessionId && currentOwner()
+                    }
                     ledger={ledger}
                     transaction={editor.transaction}
                     saving={saving}
@@ -574,6 +666,7 @@ export default function App() {
                 ) : null}
                 {receipts.session ? (
                   <ReceiptCaptureSheet
+                    cloudAccount={cloudWallet?.state.signedIn ?? false}
                     ledger={ledger}
                     binding={receipts.session.binding}
                     onSave={save}
@@ -647,84 +740,85 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 52,
-  },
-  center: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 600,
-    padding: 28,
-    justifyContent: 'center',
-    alignItems: 'stretch',
-    alignSelf: 'center',
-    gap: 20,
-  },
-  header: {
-    width: '100%',
-    maxWidth: 680,
-    alignSelf: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 0,
-    paddingBottom: 6,
-  },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
-  brandTitle: {
-    color: colors.text,
-    fontWeight: '600',
-    fontSize: 17,
-    lineHeight: 23,
-    letterSpacing: -0.2,
-  },
-  accountButton: {
-    minHeight: 48,
-    maxWidth: '58%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingLeft: 12,
-    paddingVertical: 6,
-  },
-  accountLabel: {
-    color: colors.accent,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-    flexShrink: 1,
-  },
-  sampleHint: { color: colors.muted, fontSize: 12, lineHeight: 17 },
-  status: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
-  page: { flex: 1 },
-  tabBar: {
-    flexDirection: 'row',
-    gap: 2,
-    backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    paddingHorizontal: 6,
-    paddingTop: 5,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 24,
-  },
-  tab: {
-    flex: 1,
-    minHeight: 54,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 7,
-    borderRadius: 14,
-    gap: 4,
-  },
-  selectedTab: { backgroundColor: colors.accentSoft },
-  tabText: {
-    color: colors.muted,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  selectedTabText: { color: colors.accent, fontWeight: '600' },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 52,
+    },
+    center: {
+      flex: 1,
+      width: '100%',
+      maxWidth: 600,
+      padding: 28,
+      justifyContent: 'center',
+      alignItems: 'stretch',
+      alignSelf: 'center',
+      gap: 20,
+    },
+    header: {
+      width: '100%',
+      maxWidth: 680,
+      alignSelf: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 0,
+      paddingBottom: 6,
+    },
+    brand: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
+    brandTitle: {
+      color: colors.text,
+      fontWeight: '600',
+      fontSize: 17,
+      lineHeight: 23,
+      letterSpacing: -0.2,
+    },
+    accountButton: {
+      minHeight: 48,
+      maxWidth: '58%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      paddingLeft: 12,
+      paddingVertical: 6,
+    },
+    accountLabel: {
+      color: colors.accent,
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: '600',
+      flexShrink: 1,
+    },
+    sampleHint: { color: colors.muted, fontSize: 12, lineHeight: 17 },
+    status: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
+    page: { flex: 1 },
+    tabBar: {
+      flexDirection: 'row',
+      gap: 2,
+      backgroundColor: colors.surface,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      paddingHorizontal: 6,
+      paddingTop: 5,
+      paddingBottom: Platform.OS === 'ios' ? 30 : 24,
+    },
+    tab: {
+      flex: 1,
+      minHeight: 54,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
+      paddingVertical: 7,
+      borderRadius: 14,
+      gap: 4,
+    },
+    selectedTab: { backgroundColor: colors.accentSoft },
+    tabText: {
+      color: colors.muted,
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: '500',
+      textAlign: 'center',
+    },
+    selectedTabText: { color: colors.accent, fontWeight: '600' },
+  });

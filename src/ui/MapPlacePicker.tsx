@@ -12,7 +12,7 @@ import {
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type { CameraRef } from '@maplibre/maplibre-react-native';
 import { Action, Field, FormError } from './components';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 import {
   MAX_PLACE_LABEL_LENGTH,
   confirmedPlace,
@@ -66,6 +66,7 @@ export function MapPlacePicker(props: MapPlacePickerProps) {
 }
 
 function PickerSession({ initialLabel, services, onConfirm, onCancel }: MapPlacePickerProps) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const [label, setLabel] = useState(initialLabel);
   const [selected, setSelected] = useState<Coordinate | null>(null);
   const [candidate, setCandidate] = useState<PlaceCandidate | null>(null);
@@ -405,7 +406,7 @@ function PickerSession({ initialLabel, services, onConfirm, onCancel }: MapPlace
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: { gap: 12, paddingTop: 12 },
   mapFrame: { width: '100%', backgroundColor: colors.raised, borderRadius: 12, overflow: 'hidden' },
   map: { flex: 1 },
@@ -424,7 +425,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentFill,
     borderColor: colors.onAccent,
     borderWidth: 3,
   },

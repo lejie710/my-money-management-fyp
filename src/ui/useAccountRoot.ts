@@ -8,7 +8,8 @@ import { useLedger } from './useLedger';
 import { useWalletPhotos } from './useWalletPhotos';
 import { useWalletReminders } from './useWalletReminders';
 import { useExportSession } from './useExportSession';
-import { useCompanionConnection } from './useCompanionConnection';
+import { useServiceConnection } from '../services/useServiceConnection';
+import { useCloudWallet } from './useCloudWallet';
 import { useReceiptSession } from './useReceiptSession';
 import { useAssistantSession } from './useAssistantSession';
 import { useAccountView } from './useAccountView';
@@ -50,12 +51,13 @@ export function useAccountRoot({
     active: financialAllowed,
     photos: photos.photos,
   });
-  const companion = useCompanionConnection();
+  const companion = useServiceConnection({ auth: runtime.getAuthenticatedServiceBinding() });
   const assistant = useAssistantSession({
     ledger: finance.ledger,
     owner,
     active: financialAllowed,
     connection: companion,
+    historyStorage: runtime.deviceStorage,
   });
   const receipts = useReceiptSession({
     ledger: finance.ledger,
@@ -66,6 +68,13 @@ export function useAccountRoot({
     connection: companion,
     getToday: () => finance.getClock().today,
     onPhotoCleanupMessage: photos.onCleanupMessage,
+  });
+  const cloudWallet = useCloudWallet({
+    finance,
+    accountState,
+    runtime,
+    active: financialAllowed,
+    hasOpenEditor: () => hasOpenEditor() || receipts.hasOpenDraft(),
   });
   const reminders = useWalletReminders({
     ledger: finance.ledger,
@@ -181,6 +190,8 @@ export function useAccountRoot({
     reminders,
     exports,
     companion,
+    cloudWallet,
+    deviceStorage: runtime.deviceStorage,
     receipts,
     assistant,
     accountState,

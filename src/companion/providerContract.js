@@ -69,6 +69,21 @@ function validateProviders(value) {
   if (ocr === null && assistant === null && forecast === null) fail();
   return freeze({ ocr, assistant, forecast });
 }
+// Hosted metadata has a separate boundary. Local companion validation stays strict.
+function validateHostedProviders(value) {
+  if (!keys(value, ['ocr', 'assistant', 'forecast'])) fail();
+  if (value.ocr !== null && value.ocr?.engine !== 'google-cloud-vision') fail();
+  if (value.assistant !== null && value.assistant?.engine !== 'openai') fail();
+  if (value.forecast !== null && value.forecast?.processing !== 'cloud') fail();
+  const checked = validateProviders({
+    ...value,
+    forecast: value.forecast === null ? null : { ...value.forecast, processing: 'local' },
+  });
+  return freeze({
+    ...checked,
+    forecast: checked.forecast === null ? null : { ...checked.forecast, processing: 'cloud' },
+  });
+}
 function providersForConnection(configuration) {
   if (!object(configuration)) fail();
   if (configuration.version === undefined || configuration.version === 1) {
@@ -99,6 +114,7 @@ module.exports = {
   FORECAST_VERSION,
   LEGACY_PROVIDERS,
   validateProviders,
+  validateHostedProviders,
   providersForConnection,
   getProvider,
   providerRequestBinding,

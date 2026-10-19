@@ -252,7 +252,7 @@ test('report export always uses the applied range even after invalid date edits'
       Screen: 'Screen',
     },
     './TransactionsScreen': { displayDate: (value) => value },
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
     './HealthPanel': { HealthPanel: 'HealthPanel' },
     './ForecastEntry': { ForecastEntry: 'ForecastEntry' },
   });
@@ -308,7 +308,7 @@ function qrFixture(notes = 'Private note') {
     '../core/model': model,
     '../core/exports': exportsModel,
     './components': { Action: 'Action', FormError: 'FormError' },
-    './theme': { ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
     './ExportContextOptions': { ExportContextOptions: 'Options', SelectedExportDetails: 'Details' },
   });
   const render = () =>

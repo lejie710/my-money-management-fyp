@@ -1,12 +1,5 @@
 const path = require('node:path');
-const {
-  loadSource,
-  ledger,
-  clock,
-  model,
-  owner,
-  identity,
-} = require('./account-hook-harness.cjs');
+const { loadSource, ledger, clock, model, owner, identity } = require('./account-hook-harness.cjs');
 const storageCore = require('../../src/core/storage'),
   achievements = require('../../src/core/achievements'),
   commit = require('../../src/core/commitLedger');
@@ -14,7 +7,7 @@ const accountCore = require('../../src/accounts/coordinator'),
   familyStore = require('../../src/accounts/familyStorage'),
   profiles = require('../../src/accounts/profileStore');
 function fixture(options = {}) {
-  const bytes = new Map(),
+  const bytes = options.bytes ?? new Map(),
     log = [],
     faults = { get: null, set: null },
     scope = { kind: 'test', namespace: 'account-root-bridge' };
@@ -36,10 +29,13 @@ function fixture(options = {}) {
     {},
     { setTimeout, clearTimeout },
   );
-  const presentation = loadSource(path.join(__dirname, '../../src/accounts/accountPresentation.ts'), {
-    './identity': identity,
-    '../core/model': model,
-  });
+  const presentation = loadSource(
+    path.join(__dirname, '../../src/accounts/accountPresentation.ts'),
+    {
+      './identity': identity,
+      '../core/model': model,
+    },
+  );
   const runtimeModule = loadSource(
     path.join(__dirname, '../../src/accounts/appRuntime.ts'),
     {
@@ -50,6 +46,17 @@ function fixture(options = {}) {
       './identity': identity,
       './financialBridge': bridgeModule,
       './accountPresentation': presentation,
+      '../cloud/everydayStore': require('../../src/cloud/everydayStore'),
+      '../cloud/everydayFormat': require('../../src/cloud/everydayFormat'),
+      '../cloud/firebasePorts': { createFirebasePorts: options.createCloudPorts },
+      '../cloud/everydayFiles': {
+        createEverydayPhotoServices: () => ({
+          async read() {
+            throw Error('No synthetic photos configured');
+          },
+          async hydrate() {},
+        }),
+      },
       '../ui/useLedger': {
         localLedgerScope: scope,
         createLocalInitialLedger: () => ledger('Guest'),
@@ -62,7 +69,7 @@ function fixture(options = {}) {
       },
     },
   );
-  let user = null,
+  let user = options.initialUser ?? null,
     guard = null,
     authPending = false,
     service = 'available',
@@ -126,25 +133,48 @@ function fixture(options = {}) {
       user = { ...user, displayName: name };
     },
   };
+  const sdkApp = {},
+    sdkUsers = new WeakMap(),
+    sdkAuth = {
+      get currentUser() {
+        if (!user) return null;
+        let value = sdkUsers.get(user);
+        if (!value) {
+          value = {
+            uid: user.uid,
+            async getIdToken() {
+              return 'synthetic-token';
+            },
+          };
+          sdkUsers.set(user, value);
+        }
+        return value;
+      },
+    };
+  if (options.cloudConfiguration)
+    auth.getSdkContext = () => ({
+      app: sdkApp,
+      auth: sdkAuth,
+      configuration: options.cloudConfiguration,
+      uid: user?.uid,
+    });
   const runtime = runtimeModule.createAccountAppRuntime({
     scope,
     storage,
     auth: options.unconfigured ? null : auth,
+    cloudConfiguration: options.cloudConfiguration,
     getClock: clock,
     createGuestLedger: () => ledger('Guest'),
     timeoutMs: options.timeoutMs ?? 100,
   });
-  const runtimeCore = loadSource(
-    path.join(__dirname, '../../src/ui/ledgerRuntime.js'),
-    {
-      '../core/model': model,
-      '../core/storage': storageCore,
-      '../core/achievements': achievements,
-      '../core/commitLedger': commit,
-      '../reminders/store': owner,
-      '../accounts/identity': identity,
-    },
-  );
+  const runtimeCore = loadSource(path.join(__dirname, '../../src/ui/ledgerRuntime.js'), {
+    '../core/model': model,
+    '../core/storage': storageCore,
+    '../core/achievements': achievements,
+    '../core/commitLedger': commit,
+    '../reminders/store': owner,
+    '../accounts/identity': identity,
+  });
   const settings = runtime.ledgerOptions;
   const controller = runtimeCore.createLedgerRuntime({
     runtime: settings.runtime,
@@ -335,7 +365,18 @@ function fixture(options = {}) {
       );
     },
     ownerFor(uid) {
-      return { scope, actor: uid ? { kind: 'firebase', uid } : { kind: 'local' } };
+      return {
+        scope,
+        actor: uid
+          ? options.cloudConfiguration
+            ? {
+                kind: 'firebase-hosted',
+                projectId: options.cloudConfiguration.firebase.projectId,
+                uid,
+              }
+            : { kind: 'firebase', uid }
+          : { kind: 'local' },
+      };
     },
     keyFor(uid) {
       return familyStore.familyStorageKeys(this.ownerFor(uid)).key;

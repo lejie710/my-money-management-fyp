@@ -13,7 +13,7 @@ import { PdfExportActions } from './PdfExportActions';
 import { TransactionQrPanel } from './TransactionQrPanel';
 import { usePdfExport } from './usePdfExport';
 import type { PdfUiServices, RenderTransactionQr } from './exportTypes';
-import { ui } from './theme';
+import { useTheme } from './theme';
 
 type Props = {
   source: TransactionExportSource;
@@ -28,6 +28,7 @@ export function TransactionExportSheet(props: Props) {
 }
 
 function TransactionExportContent({ source, sessionKey, services, renderQr, onClose }: Props) {
+  const { colors, ui } = useTheme();
   const [selection, setSelection] = useState<ContextSelection>(() => ({
     ...DEFAULT_CONTEXT_SELECTION,
   }));

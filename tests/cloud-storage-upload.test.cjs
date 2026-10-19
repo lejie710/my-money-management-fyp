@@ -361,3 +361,37 @@ test('a successful HTTP response must acknowledge the exact object, bucket, size
     await assert.rejects(upload(path, bytes, metadata), /not confirmed/);
   }
 });
+
+test('everyday wallet photo paths use the same native byte transport and reject foreign or malformed scope/hash paths', async () => {
+  const photoBytes = new Uint8Array([0, 127, 128, 255]),
+    hash = sha256Hex(photoBytes),
+    photoMetadata = { contentType: 'image/png', sha256: hash };
+  let calls = 0;
+  const { upload } = setup({
+    fetchImpl: async (url) => {
+      calls++;
+      const name = new URL(url).searchParams.get('name');
+      return response(
+        url,
+        {},
+        {
+          name,
+          size: String(photoBytes.length),
+          contentType: 'image/png',
+          metadata: { sha256: hash },
+        },
+      );
+    },
+  });
+  for (const wallet of ['main', 'test-' + 'a'.repeat(64)])
+    await upload(`users/${owner.uid}/walletFiles/${wallet}/${hash}`, photoBytes, photoMetadata);
+  assert.equal(calls, 2);
+  for (const bad of [
+    `users/other/walletFiles/main/${hash}`,
+    `users/${owner.uid}/walletFiles/other/${hash}`,
+    `users/${owner.uid}/walletFiles/main/${'0'.repeat(64)}`,
+    `users/${owner.uid}/walletFiles/main/${hash}/extra`,
+  ])
+    await assert.rejects(upload(bad, photoBytes, photoMetadata));
+  assert.equal(calls, 2);
+});

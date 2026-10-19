@@ -6,10 +6,11 @@ import { ReceiptReviewFields } from './ReceiptReviewFields';
 import { useReceiptCapture } from './useReceiptCapture';
 import type { ReceiptUiBinding } from './receiptUiTypes';
 import type { SaveLedger } from './useLedger';
-import { colors, ui } from './theme';
+import { useTheme } from './theme';
 
 type Props = {
   ledger: Ledger;
+  cloudAccount?:boolean;
   binding: ReceiptUiBinding;
   onSave: SaveLedger;
   saveError: string;
@@ -22,6 +23,7 @@ export function ReceiptCaptureSheet(props: Props) {
 }
 function ReceiptCaptureContent({
   ledger,
+  cloudAccount = false,
   binding,
   onSave,
   saveError,
@@ -29,6 +31,7 @@ function ReceiptCaptureContent({
   onManualEntry,
   prepareReceiptOrigin,
 }: Props) {
+  const { colors, ui } = useTheme();
   const draft = useReceiptCapture({ ledger, binding, onSave, onClose, prepareReceiptOrigin });
   const [expandedImage, setExpandedImage] = useState(false);
   const [failedPreview, setFailedPreview] = useState<string | null>(null);
@@ -51,13 +54,18 @@ function ReceiptCaptureContent({
       </Text>
       <Text style={[ui.body, ui.smallGap]} testID="receipt-provider-disclosure">
         {cloud
-          ? 'When you choose Recognize with Google Vision, the selected image is sent through your Windows companion to Google Cloud Vision. Images must be at most 6 MiB. Your provider account usage charges may apply. Review all suggestions before saving an expense.'
+          ? 'When you choose Recognize with Google Vision, the selected image is sent through your configured service to Google Cloud Vision. Images must be at most 6 MiB. Your provider account usage charges may apply. Review all suggestions before saving an expense.'
           : 'Choose a receipt image, then explicitly request recognition. Its image bytes go to the local Windows companion on your computer for OCR. No cloud OCR or automatic transaction is used.'}
       </Text>
+        <Text style={[ui.hint,ui.smallGap]} testID="receipt-storage-disclosure">
+        {cloudAccount
+          ? 'Saving confirms the expense in Firebase. If you choose to keep the receipt photo, it is also stored with your account.'
+          : 'The reviewed expense and any photo you choose to keep are saved on this device.'}
+      </Text>
       {!binding.client ? (
-        <Text style={[ui.body, ui.smallGap]} testID="receipt-connection-status">
-          No local companion configuration is available. Close this panel and choose Recheck
-          connection after pairing. Manual transaction entry remains available.
+      <Text style={[ui.body, ui.smallGap]} testID="receipt-connection-status">
+          Receipt recognition is not configured. Close this panel and choose Recheck connection
+          after pairing. Manual transaction entry remains available.
         </Text>
       ) : (
         <Text style={[ui.hint, ui.smallGap]} testID="receipt-connection-status">

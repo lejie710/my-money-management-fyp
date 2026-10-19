@@ -72,7 +72,7 @@ function fixture(phase = 'configured', busy = false) {
       StyleSheet: { create: (value) => value, hairlineWidth: 0.5 },
     },
     './AppIcon': { AppIcon: 'AppIcon' },
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
   });
   return { host, calls, props, render: () => host.render(() => module.ReceiptEntry(props)) };
 }

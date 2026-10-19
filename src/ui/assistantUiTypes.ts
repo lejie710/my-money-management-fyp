@@ -1,3 +1,4 @@
+import type { createConversationStore } from '../assistant/conversations';
 import type { AssistantProvider } from '../companion/providerContract';
 import type { Ledger } from '../core/model';
 import type { AssistantContext, ContextSelection, FinancialFact } from '../assistant/grounding';
@@ -11,6 +12,8 @@ export type AssistantPanelProps = {
   actorKey: string;
   sessionKey: string;
   initialRange: { startDate: string; endDate: string };
+  initialInclude?: ContextSelection['include'];
+  conversationStore?: ReturnType<typeof createConversationStore>;
   transport?: AssistantTransport;
   provider?: AssistantProvider;
   /** Root owner/connection guard, including the interval before the child rerenders. */

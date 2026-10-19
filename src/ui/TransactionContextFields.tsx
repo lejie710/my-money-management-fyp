@@ -9,7 +9,7 @@ import {
 import { Action, Field, FormError } from './components';
 import { TransactionPhotoPreview } from './TransactionPhotoPreview';
 import type { TransactionContextDraft } from './useTransactionContext';
-import { colors, ui } from './theme';
+import { useTheme } from './theme';
 
 const sourceLabel = (source?: string) =>
   source === 'contacts'
@@ -37,6 +37,7 @@ export function TransactionContextFields({
   disabled: boolean;
   onOpenMap?: () => void;
 }) {
+  const { colors, ui } = useTheme();
   const photo = draft.photoEdit.kind === 'remove' ? null : draft.originalPhoto;
   const selectedUri = draft.photoEdit.kind === 'selected' ? draft.photoEdit.picked.uri : undefined;
   const summary = [
@@ -77,7 +78,7 @@ export function TransactionContextFields({
             maxLength={MAX_NOTES_LENGTH}
             testID="transaction-notes-input"
             style={{ minHeight: 110, textAlignVertical: 'top' }}
-            hint="Optional. Saved with this transaction on this device."
+            hint="Optional. Saved with this transaction."
           />
           <Text style={ui.fieldLabel}>Photo</Text>
           <TransactionPhotoPreview photos={photos} photo={photo} draftUri={selectedUri} />

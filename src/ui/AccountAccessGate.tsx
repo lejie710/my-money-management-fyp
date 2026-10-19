@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { Action, FormError } from './components';
 import type { AccountUiState } from './accountUiTypes';
-import { colors, ui } from './theme';
+import { useTheme } from './theme';
 
 export function canShowAccountWallet(state: AccountUiState, renderedOwnerToken: string | null) {
   return (
@@ -19,14 +19,17 @@ export function AccountAccessGate({
   renderedOwnerToken,
   onRetry,
   onSignOut,
+  onCloudRecovery,
   children,
 }: {
   state: AccountUiState;
   renderedOwnerToken: string | null;
   onRetry: () => void;
   onSignOut?: () => void;
+  onCloudRecovery?: () => void;
   children: ReactNode;
 }) {
+  const { colors, ui } = useTheme();
   if (canShowAccountWallet(state, renderedOwnerToken)) return <>{children}</>;
   const loading =
     state.phase === 'restoring' || state.phase === 'opening-wallet' || state.phase === 'switching';
@@ -73,6 +76,15 @@ export function AccountAccessGate({
           disabled={state.busy}
           onPress={onRetry}
           testID="account-check-session"
+        />
+      ) : null}
+      {onCloudRecovery && state.persistence === 'confirmed' && state.user ? (
+        <Action
+          secondary
+          label="Recover cloud wallet"
+          disabled={state.busy}
+          onPress={onCloudRecovery}
+          testID="account-cloud-recovery"
         />
       ) : null}
       {state.canSignOut && onSignOut ? (

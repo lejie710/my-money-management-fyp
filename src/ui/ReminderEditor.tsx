@@ -15,7 +15,7 @@ import {
 import { Action, Field, FormError, Sheet } from './components';
 import { localReminderUnavailableReason } from '../reminders/expoAdapter';
 import { deviceTimeZone, reminderTime } from './reminderDisplay';
-import { ui } from './theme';
+import { useTheme } from './theme';
 
 type Props = {
   coordinator: ReminderCoordinator;
@@ -25,6 +25,7 @@ type Props = {
 };
 
 export function ReminderEditor({ coordinator, state, reminder, onClose }: Props) {
+  const { colors, ui } = useTheme();
   const [title, setTitle] = useState(reminder?.title ?? '');
   const [body, setBody] = useState(reminder?.body ?? '');
   const [delay, setDelay] = useState('');

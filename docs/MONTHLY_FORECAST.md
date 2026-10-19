@@ -1,6 +1,6 @@
 # Forecast recorded monthly expenses
 
-Reports → Open expense forecast projects six future months from the expenses recorded in the current wallet. The default deterministic calculation runs on the device without a companion, network request, or Python installation. An optional local Prophet comparison can be requested explicitly from the same panel. Forecasts do not create transactions or change budgets, goals or balances.
+Reports > Open expense forecast projects six future months from recorded expenses. Flask/Prophet is the original configurable model, available through the authenticated deployable backend or an optional Windows helper. A separate deterministic calculation runs on the device without a network request or Python installation. Forecasts never create transactions or change budgets, goals or balances.
 
 The target is recorded expenses, including an expense saved from receipt review. Income and debt payments are excluded. Missing transactions and changes in spending can make the projection a poor description of future real spending. The feature does not claim that the wallet contains a complete financial history.
 
@@ -31,7 +31,7 @@ History starts at the first selected expense in a completed month. Subsequent co
 
 At least eight completed history months and three months with selected expenses are required. These are engineering availability rules, not a statistical guarantee. Short or sparse histories show the actual counts and an insufficient-history state with no forecast rows. The app never inserts synthetic history to make an ordinary wallet eligible.
 
-## The three methods
+## Device comparison methods
 
 The implementation compares three explicit candidates using the same completed history and the same evaluation dates:
 
@@ -43,17 +43,21 @@ The implementation compares three explicit candidates using the same completed h
 
 The trend damping is a project heuristic. Every candidate is bounded between zero and twice the largest value among its latest six training months, then rounded once to the currency's smallest unit. The same procedure applies inside historical comparisons and future projections. JPY retains whole-yen precision; MYR retains sen. Exact rational arithmetic prevents monetary half-tie drift, while the public results remain ordinary integer numbers.
 
-The bound prevents extreme extrapolation in this implementation. It is neither a confidence interval nor a spending limit: actual future expenses can exceed it. These three device methods are separate from the optional Prophet model. Their bounds and historical scores must not be attributed to Prophet.
+The bound prevents extreme extrapolation in this implementation. It is neither a confidence interval nor a spending limit: actual future expenses can exceed it. These three device methods are separate from the configured Prophet model. Their bounds and historical scores must not be attributed to Prophet.
 
-## Optional local Prophet comparison
+## Run Prophet through the configured service
 
-Prophet controls appear only when its connection is configured; setup remains discoverable under Wallet > Connections. Without that connection, the screen shows the ordinary device forecast. After preparing and pairing the [local Prophet service](../tools/forecast/README.md), open the forecast panel, apply its date/category, and choose Run local Prophet. Only the applied currency, dates, and completed monthly expense totals go to the connected Windows host. Opening the screen does not start a fit. The device result remains available if Prophet is disconnected, unavailable, or cancelled.
+The [deployable backend](../tools/backend/README.md) is the primary service route. Configure its Firebase authentication and Python environment, sign in to the matching account, open the forecast panel and apply the as-of date/category. Choose Run Prophet forecast to send the applied currency, dates and completed monthly expense totals to that backend. Individual transaction descriptions, notes, photos and account profile fields are excluded from model input. Authentication is handled separately.
 
-Prophet requires 8 to 120 completed months and at least three active expense months. Longer histories are rejected with an explicit explanation rather than silently truncated. It uses the same excluded partial month and the same six future target months as the device calculation. The displayed result labels the provider, training period, and corresponding device amount for each month.
+Opening the screen or checking service metadata does not start a model fit. A configured backend can serve the phone without a Windows computer beside it. If the hosted provider is unavailable, the app reports that outcome; it does not silently run the local helper instead. The independent device calculation remains visible and useful offline.
 
-The model uses an explicit linear configuration without seasonal components or prediction intervals. Its output is approximate and rounded to the currency's minor unit. Negative estimates remain visible with a warning that they are model output, not possible recorded expense entries. The device method's historical MAE is not a score for Prophet; the separate evaluation command in the service guide compares common historical targets when needed.
+An optional [Windows Prophet helper](../tools/forecast/README.md) preserves the earlier local route. When explicitly paired, its action is Run local Prophet and the panel identifies processing on the connected Windows computer. Both service routes use the same completed-month contract and keep their provider result separate from the device calculation.
 
-Cancel, closing the panel, changing an applied selection, editing its date/category, changing the relevant records, or switching owner/provider prevents a late model response from appearing. Cancellation asks the owned service to stop that request's worker; unconfirmed cleanup blocks further fits. A result never creates a transaction or changes a budget or savings goal.
+Prophet requires 8 to 120 completed months and at least three active expense months. Longer histories are rejected with an explanation rather than silently truncated. It uses the same excluded partial month and six future target months as the device calculation. The result labels the provider, training period and corresponding device amount for each month.
+
+The model uses an explicit linear configuration without seasonal components or prediction intervals. Its output is approximate and rounded to the currency's minor unit. Negative estimates stay visible with a warning that they are model output, not possible recorded expense entries. The device method's historical MAE is not Prophet's error score; the separate evaluation command in the model guide compares common historical targets when needed.
+
+Cancellation, closing the panel, changing an applied selection, editing its date/category, changing relevant records or switching owner/provider prevents a late result from appearing. The backend gives each private fit its own internal request identity. Worker cleanup must be confirmed before further work is admitted. No returned estimate changes the saved ledger.
 
 ## Read the historical error correctly
 
@@ -92,8 +96,6 @@ Answer: no. October remains excluded from training; its through-date amount chan
 
 ## Verification scope
 
-The reviewed preparation passed 56 source checks covering forecast arithmetic, actual component behavior, the isolated fixed reference and preserved existing fixtures. The actual integrated app/public-companion suite passes 800 tests with normal Node isolation, and TypeScript passes. Independent review covered the full-owner binding, separate forecast selection, preserved PDF/assistant applied ranges and guarded integration.
+See [Verification](../VERIFICATION.md) for the precise source gates and native observations. The recorded Windows evidence includes real Prophet fits, six displayed results from the actual local service, and a separate portable-backend execution path with owned-worker lifecycle checks. That evidence is distinct from injected OpenAI/Vision responses and from the device forecast's deterministic examples.
 
-Seven Android checks verified the actual six reference rows, cutoff/history counts, separately excluded partial month, selected method and historical errors. Transport showed honest insufficiency, Food restored the reference, and an invalid date preserved the labelled applied result. Restarting the Android process recomputed the same projections. Direct comparison confirmed that all 26 saved synthetic records stayed byte-identical.
-
-The selected screens were visually inspected at the tested setting. Native history pagination, source-change Refresh and font-scale 1.3 were not part of this gate. Source tests and fixed synthetic examples do not establish real-world prediction accuracy, physical-device behavior or iOS rendering. See [Verification](../VERIFICATION.md) for the precise completed scope.
+The repository includes a Linux worker and container recipe, with mocked supervisor checks. Native Linux execution, a built Docker image and a hosted deployment have not been established on the development machine. Fixed synthetic history and historical comparison scores do not establish real-world forecast accuracy, physical-device behavior or iOS rendering. The gallery's forecast frame is labelled as the actual local Prophet capture it contains.

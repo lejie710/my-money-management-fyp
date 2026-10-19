@@ -60,7 +60,7 @@ function fixture() {
       FormError: 'FormError',
       Sheet: 'Sheet',
     },
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
     './useProphetForecast': hook,
   });
   const props = {

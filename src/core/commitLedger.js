@@ -46,7 +46,11 @@ async function commitLedger({ current, next, storage, transition }) {
   }
 
   try {
-    const saved = validateLedger(await storage.save(candidate));
+    const saved = validateLedger(
+      await (typeof storage.saveWithExpected === 'function'
+        ? storage.saveWithExpected(previous, candidate)
+        : storage.save(candidate)),
+    );
     if (JSON.stringify(saved) !== nextBytes) throw new Error('Unexpected saved snapshot.');
     return result(true, saved, false, '');
   } catch {

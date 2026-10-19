@@ -221,9 +221,10 @@ function createAssistantRoutes({
     closed = true;
     const pending = active;
     pending?.abort.abort();
-    runtime.close?.();
+    const runtimeClosing = Promise.resolve().then(() => runtime.close?.());
     closing = (async () => {
       if (pending) await pending.done;
+      await runtimeClosing;
     })();
     return closing;
   }

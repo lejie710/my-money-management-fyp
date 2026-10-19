@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import {
   amountInputValue,
@@ -15,7 +15,11 @@ import { Action, Choice, Field, FormError, Sheet } from './components';
 import type { PlanProps } from './PlanScreen';
 import { newId } from './TransactionEditor';
 import { displayDate } from './TransactionsScreen';
-import { ui } from './theme';
+import { useTheme } from './theme';
+import { FinancialFormDraftGate } from '../drafts/FinancialFormDraftGate';
+import { useFormDraft } from '../drafts/useFormDraft';
+import { ledgerFingerprint } from '../drafts/transactionDrafts';
+import type { FinancialFormDraftStore, FormDraftSnapshot } from '../drafts/formDrafts';
 
 const periods: { value: BudgetPeriod; label: string }[] = [
   { value: 'week', label: 'Week' },
@@ -23,7 +27,25 @@ const periods: { value: BudgetPeriod; label: string }[] = [
   { value: 'year', label: 'Year' },
 ];
 
-export function BudgetEditor({
+type EditorProps = PlanProps & { budget?: Budget; onClose: () => void } & {
+  draftStore?: FinancialFormDraftStore;
+  isCurrent?: () => boolean;
+};
+export function BudgetEditor(props: EditorProps) {
+  return (
+    <FinancialFormDraftGate
+      key={props.draftStore?.key ?? props.ledger.wallet.incarnationId}
+      kind="budget"
+      store={props.draftStore}
+      ledger={props.ledger}
+      isCurrent={props.isCurrent}
+      onClose={props.onClose}
+    >
+      {(initialDraft) => <BudgetEditorForm {...props} initialDraft={initialDraft} />}
+    </FinancialFormDraftGate>
+  );
+}
+function BudgetEditorForm({
   ledger,
   saving,
   saveError,
@@ -31,23 +53,77 @@ export function BudgetEditor({
   clearSaveError,
   budget,
   onClose,
-}: PlanProps & { budget?: Budget; onClose: () => void }) {
+  draftStore,
+  isCurrent,
+  initialDraft,
+}: EditorProps & { initialDraft: FormDraftSnapshot }) {
+  const { colors, ui } = useTheme();
   const categories = ledger.categories.filter((item) => item.type === 'expense');
   const [draft, setDraft] = useState<BudgetDraft>(() =>
-    budget
-      ? {
-          categoryId: budget.categoryId,
-          amount: amountInputValue(budget.plannedMinor, ledger.wallet.currency),
-          period: budget.period,
-          anchorDate: budget.startDate,
-        }
-      : {
-          categoryId: categories[0]?.id ?? '',
-          amount: '',
-          period: 'month',
-          anchorDate: localDate(),
-        },
+    initialDraft.record?.kind === 'budget'
+      ? initialDraft.record.fields
+      : budget
+        ? {
+            categoryId: budget.categoryId,
+            amount: amountInputValue(budget.plannedMinor, ledger.wallet.currency),
+            period: budget.period,
+            anchorDate: budget.startDate,
+          }
+        : {
+            categoryId: categories[0]?.id ?? '',
+            amount: '',
+            period: 'month',
+            anchorDate: localDate(),
+          },
   );
+  const [entityId] = useState(() => initialDraft.record?.entityId ?? budget?.id ?? newId('budget'));
+  const [baseFingerprint] = useState(
+    () => initialDraft.record?.baseFingerprint ?? ledgerFingerprint(ledger),
+  );
+  const [submitting, setSubmitting] = useState(false),
+    [closing, setClosing] = useState(false),
+    [completed, setCompleted] = useState(false);
+  const writing = useRef(false),
+    active = useRef(true),
+    latest = useRef({ ledger, isCurrent });
+  latest.current = { ledger, isCurrent };
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  const current = () => active.current && (latest.current.isCurrent?.() ?? true);
+  const persistence = useFormDraft({
+    store: draftStore,
+    initial: initialDraft,
+    isCurrent: current,
+    value: { kind: 'budget', entityId, baseFingerprint, fields: draft },
+  });
+  const busy = saving || submitting || closing;
+  const editable = !busy && !completed;
+  const close = () => {
+    if (writing.current || busy || !current()) return;
+    if (completed) {
+      onClose();
+      return;
+    }
+    setClosing(true);
+    void persistence
+      .flush()
+      .then((ok) => {
+        if (ok && current()) onClose();
+      })
+      .finally(() => {
+        if (active.current) setClosing(false);
+      });
+  };
+  const assertBase = () => {
+    if (!current() || ledgerFingerprint(latest.current.ledger) !== baseFingerprint)
+      throw new Error(
+        'The wallet changed while this budget was open. Your draft is retained; reopen and review current records.',
+      );
+  };
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   let range = '';
@@ -59,40 +135,95 @@ export function BudgetEditor({
   }
 
   const update = (key: keyof BudgetDraft, value: string) => {
+    if (!editable || writing.current || !current()) return;
     setDraft((current) => ({ ...current, [key]: value }));
     setError('');
     clearSaveError();
   };
+  const finish = async () => {
+    const cleared = await persistence.complete();
+    if (!current()) return;
+    if (cleared) onClose();
+    else {
+      setCompleted(true);
+      setError(
+        'The budget change was saved. Its older draft could not be cleared; close this form and review the retained draft before editing again.',
+      );
+    }
+  };
   const save = async () => {
-    if (saving) return;
+    if (!editable || writing.current || !current()) return;
+    writing.current = true;
+    setSubmitting(true);
+    setError('');
     try {
-      const nextBudget = budgetFromDraft(draft, budget?.id ?? newId('budget'), ledger);
-      const next = saveBudget(ledger, nextBudget, !!budget);
+      assertBase();
+      if (!(await persistence.flush())) return;
+      assertBase();
+      const nextBudget = budgetFromDraft(draft, entityId, ledger);
       if (
         await onSave(
-          next,
+          saveBudget(ledger, nextBudget, !!budget),
           `${budget ? 'Updated' : 'Added'} budget. Spending is calculated from entries in its date range.`,
         )
       )
-        onClose();
+        await finish();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Check the budget details.');
+      if (current()) setError(cause instanceof Error ? cause.message : 'Check the budget details.');
+    } finally {
+      writing.current = false;
+      if (active.current) setSubmitting(false);
     }
   };
   const remove = async () => {
-    if (!budget || saving) return;
+    if (!budget || !editable || writing.current || !current()) return;
+    writing.current = true;
+    setSubmitting(true);
+    setError('');
     try {
+      assertBase();
+      if (!(await persistence.flush())) return;
+      assertBase();
       if (
         await onSave(deleteBudget(ledger, budget.id), 'Budget deleted. Transactions are unchanged.')
       )
-        onClose();
+        await finish();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The budget could not be deleted.');
+      if (current())
+        setError(cause instanceof Error ? cause.message : 'The budget could not be deleted.');
+    } finally {
+      writing.current = false;
+      if (active.current) setSubmitting(false);
     }
   };
 
   return (
-    <Sheet title={budget ? 'Edit budget' : 'New budget'} busy={saving} onClose={onClose}>
+    <Sheet title={budget ? 'Edit budget' : 'New budget'} busy={busy} onClose={close}>
+      {persistence.enabled ? (
+        <View style={ui.smallGap}>
+          <Text style={ui.hint} testID="budget-draft-status">
+            {persistence.saving
+              ? 'Saving draft on this device.'
+              : persistence.saved
+                ? 'Draft saved on this device. Close to finish it later.'
+                : 'Unfinished edits will be saved on this device.'}
+          </Text>
+          <FormError message={persistence.error} testID="budget-draft-save-error" />
+          {persistence.error && !completed ? (
+            <View style={ui.smallGap}>
+              <Action
+                label="Retry saving draft"
+                secondary
+                disabled={busy}
+                onPress={() => {
+                  void persistence.flush();
+                }}
+                testID="budget-draft-save-retry"
+              />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       <Field
         label={`Budget amount (${ledger.wallet.currency})`}
         value={draft.amount}
@@ -100,7 +231,7 @@ export function BudgetEditor({
         placeholder={ledger.wallet.currency === 'JPY' ? '0' : '0.00'}
         keyboardType="decimal-pad"
         maxLength={15}
-        editable={!saving}
+        editable={editable}
         onChangeText={(value) => update('amount', value)}
       />
       <Text style={ui.fieldLabel}>Calendar period</Text>
@@ -110,7 +241,7 @@ export function BudgetEditor({
             key={item.value}
             label={item.label}
             selected={draft.period === item.value}
-            disabled={saving}
+            disabled={!editable}
             testID={`budget-period-${item.value}`}
             onPress={() => update('period', item.value)}
           />
@@ -124,7 +255,7 @@ export function BudgetEditor({
         maxLength={10}
         autoCapitalize="none"
         autoCorrect={false}
-        editable={!saving}
+        editable={editable}
         onChangeText={(value) => update('anchorDate', value)}
         hint={
           draft.period === 'week'
@@ -147,7 +278,7 @@ export function BudgetEditor({
               key={category.id}
               label={category.name}
               selected={draft.categoryId === category.id}
-              disabled={saving}
+              disabled={!editable}
               testID={`budget-category-${category.id}`}
               onPress={() => update('categoryId', category.id)}
             />
@@ -167,7 +298,7 @@ export function BudgetEditor({
       <View style={ui.gap}>
         <Action
           label={saving ? 'Saving…' : budget ? 'Save budget' : 'Create budget'}
-          disabled={saving || !categories.length}
+          disabled={!editable || !categories.length}
           onPress={() => {
             void save();
           }}
@@ -181,7 +312,7 @@ export function BudgetEditor({
               label="Delete budget"
               secondary
               danger
-              disabled={saving}
+              disabled={!editable}
               onPress={() => setConfirmDelete(true)}
               testID="delete-budget"
             />
@@ -195,7 +326,7 @@ export function BudgetEditor({
                   label="Yes, delete budget"
                   secondary
                   danger
-                  disabled={saving}
+                  disabled={!editable}
                   onPress={() => {
                     void remove();
                   }}
@@ -206,7 +337,7 @@ export function BudgetEditor({
                 <Action
                   label="Keep budget"
                   secondary
-                  disabled={saving}
+                  disabled={!editable}
                   onPress={() => setConfirmDelete(false)}
                 />
               </View>

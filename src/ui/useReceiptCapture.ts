@@ -385,7 +385,7 @@ export function useReceiptCapture({
       if (!valid(session, revision)) return;
       const saved = await onSave(
         saveTransaction(ledger, transaction),
-        'Reviewed receipt expense saved on this device.',
+        'Reviewed receipt expense saved.',
       );
       if (saved) {
         const active = valid(session, revision);

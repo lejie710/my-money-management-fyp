@@ -1,6 +1,6 @@
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
-import { colors } from './theme';
+import { useTheme } from './theme';
 
 export type IconName =
   | 'activity'
@@ -18,9 +18,14 @@ export type IconName =
   | 'close'
   | 'check'
   | 'arrowup'
-  | 'arrowdown';
+  | 'arrowdown'
+  | 'eye'
+  | 'eyeoff';
 
 const outlines: Record<IconName, string> = {
+  eye: 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Zm7 0a3 3 0 1 0 6 0 3 3 0 0 0-6 0',
+  eyeoff:
+    'M3 3l18 18M10.6 5.1A12 12 0 0 1 12 5c7 0 10 7 10 7a16 16 0 0 1-3.2 4M6.4 6.4A17 17 0 0 0 2 12s3 7 10 7a12 12 0 0 0 5.5-1.4M9.9 9.9a3 3 0 0 0 4.2 4.2',
   activity: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
   plan: 'M7 3v4M17 3v4M4 10h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2ZM8 15l3 3 5-5',
   reports: 'M4 4v16h16M8 15v-4M12 15V7M16 15v-6',
@@ -46,7 +51,7 @@ const outlines: Record<IconName, string> = {
 export function AppIcon({
   name,
   size = 22,
-  color = colors.accent,
+  color,
   strokeWidth = 1.8,
   testID,
 }: {
@@ -56,6 +61,7 @@ export function AppIcon({
   strokeWidth?: number;
   testID?: string;
 }) {
+  const { colors, ui } = useTheme();
   return (
     <Svg
       width={size}
@@ -69,7 +75,7 @@ export function AppIcon({
       <Path
         d={outlines[name]}
         fill="none"
-        stroke={color}
+        stroke={color ?? colors.accent}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"

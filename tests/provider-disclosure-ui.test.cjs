@@ -26,7 +26,7 @@ const native = {
   ActivityIndicator: 'ActivityIndicator',
   StyleSheet: { create: (value) => value },
 };
-const ui = { colors: {}, ui: {} };
+const ui = require('./helpers/theme-stub.cjs').themeStub;
 const components = { Action: 'Action', Field: 'Field', FormError: 'FormError', Sheet: 'Sheet' };
 
 test('OpenAI destination and selected-data disclosure are visible before the explicit Ask action', () => {

@@ -82,10 +82,13 @@ test('an uncertain save and same-incarnation restore cannot reopen a stale captu
       }),
     },
     './src/ui/useWalletReminders': { useWalletReminders: () => ({}) },
-    './src/ui/theme': { colors: {}, ui: {} },
+    './src/ui/theme': require('./helpers/theme-stub.cjs').themeStub,
+    './src/ui/ThemeProvider': { ThemeProvider: 'ThemeProvider' },
     './src/ui/components': { Action: 'Action', FormError: 'FormError', Sheet: 'Sheet' },
     './src/ui/AppIcon': { AppIcon: 'AppIcon' },
     './src/ui/useCloudBackup': { useCloudBackup: () => ({ controller: Object.freeze({}) }) },
+    './src/ui/CloudWalletScreen': { CloudWalletScreen: 'CloudWalletScreen' },
+    './src/drafts/transactionDrafts': require('../src/drafts/transactionDrafts'),
     './src/ui/CloudBackupScreen': { CloudBackupScreen: 'CloudBackupScreen' },
     './src/ui/useExportSession': {
       useExportSession: () => ({
@@ -121,7 +124,7 @@ test('an uncertain save and same-incarnation restore cannot reopen a stale captu
     'ConnectionsScreen',
   ])
     imports[`./src/ui/${name}`] = { [name]: name };
-  const App = loadTsSource(path.join(__dirname, '../App.tsx'), imports).default;
+  const App = loadTsSource(path.join(__dirname, '../App.tsx'), imports).AppContent;
   const render = () => host.render(App);
   let tree = render();
   const activity = find(tree, 'TransactionsScreen');

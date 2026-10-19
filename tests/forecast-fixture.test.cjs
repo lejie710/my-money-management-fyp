@@ -241,7 +241,7 @@ test('actual staged forecast UI can apply the Transport insufficient state and r
       FormError: 'FormError',
       Sheet: 'Sheet',
     },
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
     './useProphetForecast': require('./helpers/account-hook-harness.cjs').loadSource(
       path.join(__dirname, '../src/ui/useProphetForecast.ts'),
       { react: host.react, '../forecast/protocol': require('../src/forecast/protocol') },

@@ -4,6 +4,15 @@ service firebase.storage {
   function owner(uid) { return request.auth != null && request.auth.uid == uid; }
   function validId(id) { return id.matches('backup-[a-z0-9-]{16,96}'); }
   function hashMetadata() { return request.resource.metadata.keys().hasOnly(['sha256']) && request.resource.metadata.sha256.matches('[a-f0-9]{64}'); }
+  match /users/{uid}/walletFiles/{walletId}/{hash} {
+   allow read: if owner(uid) && (walletId == 'main' || walletId.matches('test-[a-f0-9]{64}'));
+   allow create: if resource == null && owner(uid)
+    && (walletId == 'main' || walletId.matches('test-[a-f0-9]{64}'))
+    && hash.matches('[a-f0-9]{64}') && request.resource.metadata.sha256 == hash
+    && request.resource.size > 0 && request.resource.size <= 10485760
+    && request.resource.contentType in ['image/jpeg','image/png','image/webp'] && hashMetadata();
+   allow update, delete: if false;
+  }
   match /users/{uid}/walletBackups/{id}/snapshot.json {
    allow read: if owner(uid);
    allow create: if resource == null && owner(uid) && validId(id) && request.resource.size > 0 && request.resource.size <= 5242880 && request.resource.contentType == 'application/json' && hashMetadata();

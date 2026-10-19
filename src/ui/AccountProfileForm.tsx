@@ -4,7 +4,7 @@ import { validDate } from '../core/model';
 import { Action, Choice, Field, FormError } from './components';
 import type { AccountUiController, AccountUiState, ProfileGender } from './accountUiTypes';
 import { useAccountOperation } from './useAccountView';
-import { ui } from './theme';
+import { useTheme } from './theme';
 
 const genders: { value: ProfileGender; label: string }[] = [
   { value: '', label: 'Not set' },
@@ -22,6 +22,7 @@ export function AccountProfileForm({
   state: AccountUiState;
   onBack: () => void;
 }) {
+  const { colors, ui } = useTheme();
   const [name, setName] = useState(state.user?.displayName ?? '');
   const [gender, setGender] = useState<ProfileGender>(state.profile.extras?.gender ?? '');
   const [birthDate, setBirthDate] = useState(state.profile.extras?.birthDate ?? '');

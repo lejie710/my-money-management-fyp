@@ -4,6 +4,7 @@ import type { LedgerStorage } from '../ui/ledgerRuntime';
 import type { CloudOwner, WalletSummary } from './backupFormat';
 import type { CloudBackupIndex } from './transport';
 export type CloudSetup = {
+  sessionToken?: string;
   configured: boolean;
   signedIn: boolean;
   projectId: string | null;
@@ -30,6 +31,8 @@ export type BackupState = {
   setup: CloudSetup;
 };
 export type BackupBinding = {
+  bindingToken?: object;
+  identityPending?: boolean;
   family: DataFamily;
   ownerToken: string | null;
   ledger: Ledger;

@@ -374,6 +374,70 @@ function createPhotoManager({ family, files, journal, ledgerStorage, now, newId 
         }
       });
     },
+    importRetained(photo, picked) {
+      let captured;
+      try {
+        captured = clone(validatePhotoRef(photo));
+        if (
+          !object(picked) ||
+          typeof picked.uri !== 'string' ||
+          picked.uri.length > 4096 ||
+          !/^(?:file|content):\/\//.test(picked.uri)
+        )
+          throw new Error('A verified local photo source is required.');
+      } catch (error) {
+        return Promise.reject(error);
+      }
+      return queued(async () => {
+        await load(true);
+        return ledgerStorage.withRetainedPhotoReferences(async (snapshot) => {
+          if (!snapshot.complete || !snapshot.references.some((ref) => samePhotoRef(ref, captured)))
+            throw new Error(
+              'The cloud photo must already be retained by this wallet or its durable draft.',
+            );
+          const info = validatePhotoInspection(await files.inspectSource(picked.uri));
+          if (
+            ['mimeType', 'width', 'height', 'byteSize'].some((key) => info[key] !== captured[key])
+          )
+            throw new Error('The downloaded photo does not match its owned reference.');
+          const key = photoKey(captured);
+          const existing = state.entries.find((entry) => photoKey(entry.photo) === key);
+          if (existing && !samePhotoRef(existing.photo, captured))
+            throw new Error('The retained photo ownership is inconsistent.');
+          if (!existing) {
+            if (state.entries.length >= MAX_PHOTO_ENTRIES)
+              throw new Error('Photo ownership storage is full.');
+            const createdAtMs = now();
+            if (
+              !Number.isSafeInteger(createdAtMs) ||
+              createdAtMs < 0 ||
+              createdAtMs > 8640000000000000
+            )
+              throw new Error('Photo storage requires a valid creation time.');
+            await persist({
+              ...state,
+              entries: [...state.entries, { photo: captured, phase: 'copying', createdAtMs }],
+            });
+          }
+          let actual = await files.inspectOwned(captured);
+          if (actual === null) {
+            try {
+              await files.copyIntoOwned(picked.uri, captured);
+            } catch {}
+            actual = await files.inspectOwned(captured);
+          }
+          if (
+            !actual ||
+            ['mimeType', 'width', 'height', 'byteSize'].some(
+              (field) => actual[field] !== captured[field],
+            )
+          )
+            throw new Error('The downloaded owned photo could not be confirmed.');
+          await updatePhase(key, 'ready');
+          return Object.freeze(captured);
+        });
+      });
+    },
     closeDraft(handle) {
       if (object(handle) && closedDrafts.has(handle)) return Promise.resolve(outcome());
       let record;

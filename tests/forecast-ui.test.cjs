@@ -102,7 +102,7 @@ function fixture(source = ledger(), date = '2026-10-18') {
       FormError: 'FormError',
       Sheet: 'Sheet',
     },
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
     './useProphetForecast': loadTsSource(path.join(__dirname, '../src/ui/useProphetForecast.ts'), {
       react: host.react,
       '../forecast/protocol': require('../src/forecast/protocol'),
@@ -150,7 +150,7 @@ test('Reports entry opens explicitly with captured clock date and its outer key 
       '../core/model': model,
       './components': { Action: 'Action', FormError: 'FormError' },
       './ForecastSheet': { ForecastSheet: 'ForecastSheet' },
-      './theme': { ui: {} },
+      './theme': require('./helpers/theme-stub.cjs').themeStub,
     });
   const props = {
     ledger: ledger(),

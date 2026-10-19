@@ -8,7 +8,7 @@ export type AssistantProvider = Readonly<
 >;
 export type ForecastProvider = Readonly<{
   engine: 'prophet';
-  processing: 'local';
+  processing: 'local' | 'cloud';
   version: 'recorded-expense-prophet-v1';
   maxHistoryMonths: 120;
 }>;
@@ -17,14 +17,22 @@ export type CompanionProviders = Readonly<{
   assistant: AssistantProvider | null;
   forecast: ForecastProvider | null;
 }>;
+export type LocalCompanionProviders = Omit<CompanionProviders, 'forecast'> &
+  Readonly<{ forecast: (ForecastProvider & { processing: 'local' }) | null }>;
+export type HostedProviders = Readonly<{
+  ocr: Extract<OcrProvider, { processing: 'cloud' }> | null;
+  assistant: Extract<AssistantProvider, { processing: 'cloud' }> | null;
+  forecast: (ForecastProvider & { processing: 'cloud' }) | null;
+}>;
 export type ProviderConfiguration =
   | { version?: 1; providers?: never }
-  | { version: 2; runId?: string; providers: CompanionProviders };
+  | { version: 2; runId?: string; providers: LocalCompanionProviders };
 export const PROVIDER_HEADER: 'x-mymoney-provider';
 export const LOCAL_MODEL_ID: 'Qwen3-4B-Instruct-2507-GGUF';
 export const FORECAST_VERSION: 'recorded-expense-prophet-v1';
 export const LEGACY_PROVIDERS: CompanionProviders;
-export function validateProviders(value: unknown): CompanionProviders;
+export function validateProviders(value: unknown): LocalCompanionProviders;
+export function validateHostedProviders(value: unknown): HostedProviders;
 export function providersForConnection(configuration: ProviderConfiguration): CompanionProviders;
 export function getProvider(
   configuration: ProviderConfiguration,

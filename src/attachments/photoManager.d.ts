@@ -24,6 +24,8 @@ export interface PhotoManager {
   initialize(): Promise<PhotoCleanupResult>;
   beginDraft(ownerIncarnationId: string): PhotoDraft;
   stage(draft: PhotoDraft, picked: PickedPhoto): Promise<PhotoRef>;
+  /** Register a verified download only when its exact reference is already retained by this family. */
+  importRetained(photo: PhotoRef, picked: PickedPhoto): Promise<PhotoRef>;
   closeDraft(draft: PhotoDraft): Promise<PhotoCleanupResult>;
   queueCleanup(photos: readonly PhotoRef[]): Promise<PhotoCleanupResult>;
   retryCleanup(): Promise<PhotoCleanupResult>;

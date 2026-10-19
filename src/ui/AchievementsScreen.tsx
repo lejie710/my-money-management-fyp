@@ -12,7 +12,7 @@ import { formatMoney, Ledger, localDate } from '../core/model';
 import { Action, Choice, Field, FormError, Screen } from './components';
 import { ProgressBar } from './PlanScreen';
 import { displayDate } from './TransactionsScreen';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 import type { SaveLedger } from './useLedger';
 
 type Props = {
@@ -63,6 +63,7 @@ export function AchievementsScreen({
   getClock,
   onBack,
 }: Props) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const [clock, setClock] = useState(getClock);
   const [date, setDate] = useState(() => previousDate(clock.today));
   const [dayError, setDayError] = useState('');
@@ -398,7 +399,7 @@ export function AchievementsScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   status: { color: colors.purple, fontSize: 14, fontWeight: '600', lineHeight: 21, marginTop: 6 },
   budgetName: { color: colors.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
 });

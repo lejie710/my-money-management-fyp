@@ -1,11 +1,11 @@
-import type { Ledger, Currency } from "../core/model";
+import type { Ledger, Currency } from '../core/model';
 export type ContextSelection = Readonly<{
   startDate: string;
   endDate: string;
   include?: Readonly<
     Partial<
       Record<
-        "allDatesBalance" | "categories" | "budgets" | "goal" | "health",
+        'allDatesBalance' | 'categories' | 'budgets' | 'goal' | 'health' | 'comparisons',
         boolean
       >
     >
@@ -24,17 +24,17 @@ export type AssistantContext = Readonly<{
   recordedIncomeIsZero: boolean;
   selected: Readonly<
     Record<
-      "allDatesBalance" | "categories" | "budgets" | "goal" | "health",
+      'allDatesBalance' | 'categories' | 'budgets' | 'goal' | 'health' | 'comparisons',
       boolean
     >
   >;
   facts: readonly FinancialFact[];
 }>;
-export const MODEL_ID: "Qwen3-4B-Instruct-2507-GGUF";
+export const MODEL_ID: 'Qwen3-4B-Instruct-2507-GGUF';
 export const SYSTEM_PROMPT: string;
 export function encodeData(value: unknown): string;
 export const MAX_QUESTION_LENGTH: 500;
-export const MAX_PROMPT_CHARACTERS: 6500;
+export const MAX_PROMPT_CHARACTERS: 12000;
 export const MAX_OUTPUT_CHARACTERS: 1800;
 /** No external effects; validates the ledger and copies only explicitly selected facts. */
 export function buildAssistantContext(
@@ -45,12 +45,13 @@ export function buildAssistantContext(
 export function buildAssistantRequest(
   context: AssistantContext,
   question: string,
+  previousTurns?: readonly Readonly<{ question: string; answer: string }>[],
 ): Readonly<{
   model: typeof MODEL_ID;
-  messages: readonly Readonly<{ role: "system" | "user"; content: string }>[];
+  messages: readonly Readonly<{ role: 'system' | 'user'; content: string }>[];
   temperature: 0;
   seed: 7;
-  max_tokens: 160;
+  max_tokens: 512;
   stream: false;
 }>;
 export function assessAnswer(
@@ -60,16 +61,16 @@ export function assessAnswer(
   | Readonly<{
       accepted: false;
       code:
-        | "EMPTY_OR_OVERSIZED"
-        | "INVALID_JSON"
-        | "INVALID_RESPONSE"
-        | "ZERO_CONFLATED_WITH_MISSING"
-        | "OPENING_SCOPE_ERROR"
-        | "WRITE_CLAIM";
+        | 'EMPTY_OR_OVERSIZED'
+        | 'INVALID_JSON'
+        | 'INVALID_RESPONSE'
+        | 'ZERO_CONFLATED_WITH_MISSING'
+        | 'OPENING_SCOPE_ERROR'
+        | 'WRITE_CLAIM';
     }>
   | Readonly<{
       accepted: true;
       answer: string;
       factIds: readonly string[];
-      validation: "shape-and-known-defect-checks-only";
+      validation: 'shape-and-known-defect-checks-only';
     }>;

@@ -11,7 +11,7 @@ import { Action, FormError, Screen, Sheet } from './components';
 import { ReminderEditor } from './ReminderEditor';
 import { localReminderUnavailableReason } from '../reminders/expoAdapter';
 import { deviceTimeZone, reminderTime } from './reminderDisplay';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 
 export type RemindersScreenProps = {
   state: ReminderViewState | null;
@@ -72,6 +72,7 @@ export function RemindersScreen({
   onResumeActiveOwner,
   transitionBusy,
 }: RemindersScreenProps) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const [editor, setEditor] = useState<{ reminder?: ReminderRow } | null>(null);
   const [deleting, setDeleting] = useState<ReminderRow | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -472,7 +473,7 @@ export function RemindersScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   rowStatus: {
     color: colors.purple,
     fontSize: 14,

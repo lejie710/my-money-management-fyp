@@ -102,7 +102,7 @@ test('default context contains exact base facts and known zero, with optional gr
   };
   const f = fixture({ ledger: source }),
     view = f.render();
-  assert.deepEqual(Object.values(view.include), [false, false, false, false, false]);
+  assert.deepEqual(Object.values(view.include), [false, false, false, false, false, false]);
   const serialized = JSON.stringify(view.context);
   for (const text of ['private-note-canary', 'private-person-canary', 'private-place-canary'])
     assert.ok(!serialized.includes(text));
@@ -267,26 +267,59 @@ test('StrictMode effect replay closes the old gate, creates a usable gate and ne
   assert.equal(f.render().turns[0].question, 'Second');
   f.host.unmount();
 });
-test('only three ephemeral turns remain and previous explanations are never injected into later requests', async () => {
+test('up to twelve turns remain while only the latest three exchanges enter a follow-up and account/raw details stay excluded', async () => {
   const payloads = [];
+  const source = model.createDemoLedger(new Date(2026, 9, 18));
+  source.wallet.name = 'private-wallet-title-canary';
+  source.transactions[0].context = {
+    notes: 'private-note-canary',
+    photo: null,
+    withPerson: { name: 'private-person-canary', source: 'manual' },
+    location: { label: 'private-place-canary', source: 'manual' },
+  };
   const f = fixture({
+    ledger: source,
+    actorKey: 'private-actor-canary',
     transport: async (payload) => {
       payloads.push(payload);
       return answer('Unique generated explanation canary.', ['income']);
     },
   });
-  for (let i = 1; i <= 4; i++) assert.equal(await f.ask(`Question ${i}`), true);
+  for (let i = 1; i <= 13; i++) assert.equal(await f.ask(`Question ${i}`), true);
   assert.deepEqual(
     Array.from(f.render().turns, (turn) => turn.question),
-    ['Question 2', 'Question 3', 'Question 4'],
+    Array.from({ length: 12 }, (_, index) => `Question ${index + 2}`),
   );
+  assert.equal(JSON.parse(payloads[0].messages[2].content).history, undefined);
+  for (let index = 1; index < payloads.length; index++) {
+    const history = JSON.parse(payloads[index].messages[2].content).history;
+    assert.deepEqual(
+      history.map((turn) => turn.question),
+      Array.from(
+        { length: Math.min(index, 3) },
+        (_, offset) => `Question ${Math.max(1, index - 2) + offset}`,
+      ),
+    );
+    assert.ok(history.every((turn) => turn.answer === 'Unique generated explanation canary.'));
+  }
   for (const payload of payloads)
-    assert.ok(!JSON.stringify(payload).includes('Unique generated explanation canary'));
+    for (const secret of [
+      'private-wallet-title-canary',
+      'private-actor-canary',
+      'private-note-canary',
+      'private-person-canary',
+      'private-place-canary',
+    ])
+      assert.ok(!JSON.stringify(payload).includes(secret));
+  f.render({ actorKey: 'other-account', sessionKey: 'other-account-session' });
+  assert.equal(await f.ask('New account question'), true);
+  assert.equal(JSON.parse(payloads.at(-1).messages[2].content).history, undefined);
   f.render().clear();
   assert.equal(f.render().turns.length, 0);
   assert.equal(f.render().question, '');
   f.host.unmount();
 });
+
 test('unmount invalidates pending results even if the transport ignores abort', async () => {
   const pending = deferred();
   const f = fixture({ transport: () => pending.promise });
@@ -360,7 +393,7 @@ test('panel visibly distinguishes configured connection, known-zero facts, expli
       StyleSheet: { create: (value) => value },
     },
     './components': { Action: 'Action', Field: 'Field', FormError: 'FormError' },
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
     './useAssistant': f.hook,
   });
   const render = () => f.host.render(() => panel.AssistantPanel(f.props));
@@ -376,10 +409,13 @@ test('panel visibly distinguishes configured connection, known-zero facts, expli
     find(tree, 'assistant-connection-status').props.children.join(''),
     /configured.*checked when you ask/,
   );
+  assert.equal(find(tree, 'assistant-facts'), undefined);
+  find(tree, 'assistant-summary-toggle').props.onPress();
+  tree = render();
   assert.match(find(tree, 'assistant-zero-income').props.children.join(''), /known to be zero/);
   assert.equal(
     nodes(tree).filter((node) => node.type === 'Switch' && node.props.value === false).length,
-    5,
+    6,
   );
   assert.ok(find(tree, 'assistant-facts'));
   assert.equal(find(tree, 'assistant-ask').props.disabled, true);

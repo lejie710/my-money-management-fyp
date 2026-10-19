@@ -41,7 +41,18 @@ function createBackupCoordinator({
     active = null,
     generation = 0,
     lastOwner = null,
+    lastContext = null,
     committing = null;
+  const readContext = () => {
+    const value = getBinding();
+    return {
+      owner: value?.ownerToken ?? null,
+      binding: value?.bindingToken ?? null,
+      pending: value?.identityPending ?? false,
+      session: getSetup().sessionToken ?? null,
+    };
+  };
+  const sameContext = (a, b) => !!a && !!b && Object.keys(a).every((key) => a[key] === b[key]);
   const listeners = new Set();
   const cleanupByFamily = new Map();
   const cleanupState = () => {
@@ -63,7 +74,7 @@ function createBackupCoordinator({
       value.family.actor.kind !== 'firebase-hosted'
     )
       throw new Error('Sign in to the configured Firebase account before using Cloud Backup.');
-    return value;
+    return { ...value, sessionToken: getSetup().sessionToken ?? null };
   };
   const owner = (b) => ({ projectId: b.family.actor.projectId, uid: b.family.actor.uid });
   const journalKey = (b) =>
@@ -102,10 +113,13 @@ function createBackupCoordinator({
     return plan;
   };
   const check = (b, token, signal) => {
+    controller.ownerChanged();
     if (
       token !== generation ||
       signal.aborted ||
       getBinding()?.ownerToken !== b.ownerToken ||
+      (getBinding()?.bindingToken ?? null) !== (b.bindingToken ?? null) ||
+      (getSetup().sessionToken ?? null) !== b.sessionToken ||
       !getBinding()?.allowed
     )
       throw new Error('The wallet or account changed. Reopen Cloud Backup.');
@@ -131,6 +145,7 @@ function createBackupCoordinator({
     }
   }
   async function run(work) {
+    controller.ownerChanged();
     if (active) return false;
     const token = ++generation,
       abort = new AbortController();
@@ -227,18 +242,17 @@ function createBackupCoordinator({
     publish({
       pending: null,
       preview: null,
-      message:
-        'Cloud backup confirmed. Ordinary edits remain on this device until you back up again.',
+      message: 'A separate cloud backup was confirmed.',
     });
   }
   const controller = {
     getSnapshot() {
-      let currentOwner = null;
+      let currentContext = null;
       try {
-        currentOwner = getBinding()?.ownerToken ?? null;
+        currentContext = readContext();
       } catch {}
-      if (currentOwner === lastOwner) return view;
-      if (safeViewCache?.source === view && safeViewCache.owner === currentOwner)
+      if (sameContext(currentContext, lastContext)) return view;
+      if (safeViewCache?.source === view && sameContext(safeViewCache.context, currentContext))
         return safeViewCache.snapshot;
       const snapshot = Object.freeze({
         ...view,
@@ -252,7 +266,7 @@ function createBackupCoordinator({
         ...cleanupState(),
         setup: getSetup(),
       });
-      safeViewCache = { source: view, owner: currentOwner, snapshot };
+      safeViewCache = { source: view, context: currentContext, snapshot };
       return snapshot;
     },
     subscribe(listener) {
@@ -260,12 +274,10 @@ function createBackupCoordinator({
       return () => listeners.delete(listener);
     },
     ownerChanged() {
-      const key = getBinding()?.ownerToken ?? null;
-      if (lastOwner === key) {
-        publish({});
-        return;
-      }
-      lastOwner = key;
+      const context = readContext();
+      if (sameContext(lastContext, context)) return;
+      lastContext = context;
+      lastOwner = context.owner;
       generation++;
       if (committing === null) active?.abort();
       preview = null;
@@ -296,7 +308,14 @@ function createBackupCoordinator({
         const bytes = JSON.stringify(b.ledger),
           plan = await capture(clone(b.ledger), b.family, b, includePhotos, token, signal);
         check(b, token, signal);
-        preview = { kind: 'backup', ownerToken: b.ownerToken, targetBytes: bytes, plan };
+        preview = {
+          kind: 'backup',
+          ownerToken: b.ownerToken,
+          bindingToken: b.bindingToken,
+          sessionToken: b.sessionToken,
+          targetBytes: bytes,
+          plan,
+        };
         publish({
           preview: { kind: 'backup', ...pendingSummary(plan) },
           message: 'Review the captured records. Nothing has been uploaded.',
@@ -311,6 +330,8 @@ function createBackupCoordinator({
           !selected ||
           selected.kind !== 'backup' ||
           selected.ownerToken !== b.ownerToken ||
+          selected.bindingToken !== b.bindingToken ||
+          selected.sessionToken !== b.sessionToken ||
           selected.targetBytes !== JSON.stringify(b.ledger)
         )
           throw new Error('The wallet changed. Preview a fresh backup.');
@@ -379,7 +400,14 @@ function createBackupCoordinator({
         const targetBytes = JSON.stringify(b.ledger),
           snapshot = await transportFor(owner(b)).download(index, { signal });
         check(b, token, signal);
-        preview = { kind: 'restore', ownerToken: b.ownerToken, targetBytes, snapshot };
+        preview = {
+          kind: 'restore',
+          ownerToken: b.ownerToken,
+          bindingToken: b.bindingToken,
+          sessionToken: b.sessionToken,
+          targetBytes,
+          snapshot,
+        };
         publish({
           preview: {
             kind: 'restore',
@@ -387,13 +415,15 @@ function createBackupCoordinator({
             photos: snapshot.photos.length,
             createdAtMs: snapshot.createdAtMs,
           },
-          message: 'Review the backup. Your local wallet is unchanged.',
+          message: 'Review the backup. The selected wallet is unchanged.',
         });
       });
     },
     previewGuestCopy(includePhotos) {
       return run(async (token, signal) => {
         const b = binding();
+        if (b.storage.kind === 'firebase-live')
+          throw new Error('Use Cloud Wallet to preview and confirm a copy to Firebase.');
         if (!isEmptyTarget(b.ledger))
           throw new Error(
             'Copying requires an empty account wallet. No records were merged or replaced.',
@@ -405,6 +435,8 @@ function createBackupCoordinator({
         preview = {
           kind: 'guest-copy',
           ownerToken: b.ownerToken,
+          bindingToken: b.bindingToken,
+          sessionToken: b.sessionToken,
           targetBytes: JSON.stringify(b.ledger),
           guestBytes: JSON.stringify(source.ledger),
           plan,
@@ -432,10 +464,14 @@ function createBackupCoordinator({
       return run(async (token, signal) => {
         const b = binding(),
           selected = preview;
+        if (kind === 'guest-copy' && b.storage.kind === 'firebase-live')
+          throw new Error('Use Cloud Wallet to preview and confirm a copy to Firebase.');
         if (
           !selected ||
           selected.kind !== kind ||
           selected.ownerToken !== b.ownerToken ||
+          selected.bindingToken !== b.bindingToken ||
+          selected.sessionToken !== b.sessionToken ||
           selected.targetBytes !== JSON.stringify(b.ledger) ||
           !isEmptyTarget(b.ledger)
         )
@@ -473,12 +509,12 @@ function createBackupCoordinator({
             selected.targetBytes,
             next,
             kind === 'restore'
-              ? 'Cloud backup restored to this device.'
+              ? 'Cloud backup restored to the selected account wallet.'
               : 'Guest wallet copied. The original guest wallet is unchanged.',
           );
           if (!saved)
             throw new Error(
-              'The local save was not confirmed. Recheck saved records before trying again.',
+              'The wallet save was not confirmed. Recheck saved records before trying again.',
             );
           preview = null;
           if (token === generation)
@@ -487,7 +523,7 @@ function createBackupCoordinator({
               message:
                 kind === 'restore'
                   ? 'Cloud backup restored. No notifications or sessions were imported.'
-                  : 'Guest wallet copied. Its original records remain separate. Use Backup to upload explicitly.',
+                  : 'Guest wallet copied. Its original records remain separate.',
             });
         } catch (error) {
           if (error?.cleanupPending) {

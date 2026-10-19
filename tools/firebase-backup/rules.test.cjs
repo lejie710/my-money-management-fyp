@@ -14,6 +14,7 @@ const {
   collection,
   deleteDoc,
   terminate,
+  writeBatch,
 } = require('firebase/firestore');
 const {
   getStorage,
@@ -178,4 +179,117 @@ test('owner can delete only its test backup objects and index', async () => {
   await deleteObject(location(a));
   await deleteDoc(document(a));
   assert.equal((await getDocFromServer(document(a))).exists(), false);
+});
+
+const walletId =
+  'test-' +
+  crypto
+    .createHash('sha256')
+    .update('wallet-rules-' + stamp)
+    .digest('hex');
+const walletDocument = (c) => doc(c.db, 'users', a.uid, 'wallets', walletId);
+const operationDocument = (c, id) =>
+  doc(c.db, 'users', a.uid, 'wallets', walletId, 'operations', id);
+const walletValue = (revision, suffix) => ({
+  version: 1,
+  ownerUid: a.uid,
+  revision,
+  operationId: 'wallet-rules-' + stamp + '-' + suffix,
+  updatedAtMs: 1000,
+  payload: '{}',
+  payloadHash: hash,
+});
+function pair(c, value, change = {}) {
+  const batch = writeBatch(c.db);
+  batch.set(walletDocument(c), value);
+  batch.set(operationDocument(c, value.operationId), {
+    version: 1,
+    ownerUid: a.uid,
+    operationId: value.operationId,
+    revision: value.revision,
+    payloadHash: value.payloadHash,
+    ...change,
+  });
+  return batch.commit();
+}
+test('everyday wallet requires atomic matching receipt and monotonic revision, never a standalone head write', async () => {
+  const first = walletValue(1, 'first-0123456789');
+  await assert.rejects(setDoc(walletDocument(a), first), denied);
+  await pair(a, first);
+  assert.deepEqual((await getDocFromServer(walletDocument(a))).data(), first);
+  assert.equal(
+    (await getDocFromServer(operationDocument(a, first.operationId))).data().revision,
+    1,
+  );
+  await assert.rejects(pair(a, walletValue(1, 'stale-0123456789')), denied);
+  await assert.rejects(pair(a, walletValue(3, 'skip-0123456789')), denied);
+  await assert.rejects(
+    pair(a, walletValue(2, 'mismatch-0123456789'), { payloadHash: '0'.repeat(64) }),
+    denied,
+  );
+  await pair(a, walletValue(2, 'second-0123456789'));
+  assert.equal((await getDocFromServer(walletDocument(a))).data().revision, 2);
+});
+test('everyday wallet and receipt paths reject foreign actors, forged fields and destructive writes', async () => {
+  const next = walletValue(3, 'third-0123456789');
+  for (const c of [b, anonymous]) {
+    await assert.rejects(getDocFromServer(walletDocument(c)), denied);
+    await assert.rejects(getDocFromServer(operationDocument(c, next.operationId)), denied);
+    await assert.rejects(pair(c, next), denied);
+  }
+  for (const change of [
+    { ownerUid: b.uid },
+    { privateField: 'synthetic' },
+    { payloadHash: 'bad' },
+    { payload: '' },
+    { payload: 'x'.repeat(786433) },
+  ])
+    await assert.rejects(pair(a, { ...next, ...change }), denied);
+  const existing = walletValue(2, 'second-0123456789');
+  await assert.rejects(
+    setDoc(operationDocument(a, existing.operationId), {
+      version: 1,
+      ownerUid: a.uid,
+      operationId: existing.operationId,
+      revision: 2,
+      payloadHash: hash,
+    }),
+    denied,
+  );
+  await assert.rejects(deleteDoc(operationDocument(a, existing.operationId)), denied);
+  await assert.rejects(deleteDoc(walletDocument(a)), denied);
+  assert.equal((await getDocFromServer(walletDocument(a))).data().revision, 2);
+});
+test('everyday photo objects are private immutable images with matching content-address metadata', async () => {
+  const photo = (c) => ref(c.files, `users/${a.uid}/walletFiles/${walletId}/${hash}`);
+  await uploadBytes(photo(a), bytes, {
+    contentType: 'image/png',
+    customMetadata: { sha256: hash },
+  });
+  assert.deepEqual(new Uint8Array(await getBytes(photo(a), 10)), bytes);
+  for (const c of [b, anonymous]) {
+    await assert.rejects(getBytes(photo(c), 10), denied);
+    await assert.rejects(getMetadata(photo(c)), denied);
+    await assert.rejects(
+      uploadBytes(photo(c), bytes, { contentType: 'image/png', customMetadata: { sha256: hash } }),
+      denied,
+    );
+  }
+  await assert.rejects(
+    uploadBytes(photo(a), bytes, { contentType: 'image/png', customMetadata: { sha256: hash } }),
+    denied,
+  );
+  await assert.rejects(deleteObject(photo(a)), denied);
+  for (const [scope, digest, mime, metadataHash] of [
+    ['invalid', hash, 'image/png', hash],
+    ['main', '0'.repeat(64), 'image/png', hash],
+    ['main', hash, 'application/json', hash],
+  ])
+    await assert.rejects(
+      uploadBytes(ref(a.files, `users/${a.uid}/walletFiles/${scope}/${digest}`), bytes, {
+        contentType: mime,
+        customMetadata: { sha256: metadataHash },
+      }),
+      denied,
+    );
 });

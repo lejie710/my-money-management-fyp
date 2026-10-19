@@ -3,7 +3,17 @@ import type { createLedgerStorage } from '../core/storage';
 import type { AchievementClock } from '../core/achievements';
 import type { LedgerTransitionGuard } from '../core/commitLedger';
 import type { DataFamily } from '../accounts/identity';
-export type LedgerStorage = ReturnType<typeof createLedgerStorage>;
+export type LedgerStorage = ReturnType<typeof createLedgerStorage> & {
+  kind?: 'firebase-live';
+  isReadOnly?(): boolean;
+  saveWithExpected?(current: Ledger, next: Ledger): Promise<Ledger>;
+  readDraft?(): Promise<{
+    operationId: string;
+    phase: 'draft' | 'submitted' | 'conflict';
+    ledger: Ledger;
+  } | null>;
+  retryDraft?(token: string): Promise<Ledger>;
+};
 export type CommitObserver = (
   previous: Ledger,
   committed: Ledger,
@@ -62,6 +72,7 @@ export function createLedgerRuntime(options: {
     message: string,
   ): Promise<boolean>;
   getClock(): AchievementClock;
+  retryCloudDraft(token: string): Promise<boolean>;
   clearSaveError(bindingToken: object): void;
   registerTransitionGuard(bindingToken: object, guard: LedgerTransitionGuard): () => void;
   registerCommitObserver(bindingToken: object, observer: CommitObserver): () => void;

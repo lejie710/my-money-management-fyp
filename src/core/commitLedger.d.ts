@@ -16,6 +16,7 @@ export function commitLedger(options: {
   next: Ledger;
   storage: {
     save(ledger: Ledger): Promise<Ledger>;
+    saveWithExpected?(current: Ledger, next: Ledger): Promise<Ledger>;
     readCurrent(): Promise<Ledger | null>;
   };
   transition?: LedgerTransitionGuard | null;

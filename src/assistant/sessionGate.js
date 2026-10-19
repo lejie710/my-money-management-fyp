@@ -39,12 +39,12 @@ function createAssistantSession({
       pending.abort.abort();
     }
   }
-  function ask(question) {
+  function ask(question, history = []) {
     if (!current()) return Promise.resolve({ status: 'stale', generation });
     if (active) return Promise.resolve({ status: 'busy', generation });
     let payload;
     try {
-      payload = buildAssistantRequest(context, question);
+      payload = buildAssistantRequest(context, question, history);
     } catch {
       return Promise.resolve({ status: 'invalid-question', generation });
     }

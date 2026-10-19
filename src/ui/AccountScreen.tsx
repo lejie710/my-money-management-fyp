@@ -6,7 +6,7 @@ import { AccountProfileForm } from './AccountProfileForm';
 import { LocalResetForm } from './LocalResetForm';
 import { useAccountOperation, useAccountView } from './useAccountView';
 import type { AccountUiController, AccountUiState, LocalResetController } from './accountUiTypes';
-import { ui } from './theme';
+import { useTheme } from './theme';
 
 type Props = { controller: AccountUiController; onBack: () => void };
 export function AccountScreen(props: Props) {
@@ -15,6 +15,7 @@ export function AccountScreen(props: Props) {
 }
 
 function AccountScreenContent({ controller, state, onBack }: Props & { state: AccountUiState }) {
+  const { colors, ui } = useTheme();
   const [requestedRoute, setRoute] = useState<
     | 'home'
     | 'sign-in'
@@ -110,9 +111,9 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
           <Text style={[ui.title, ui.gap]}>Account</Text>
           <Text style={[ui.body, ui.smallGap]}>
             {state.provider === 'unconfigured'
-              ? 'Your wallet works without signing in. Accounts are an optional local connection.'
+              ? 'Your guest wallet works without signing in. Configure your own Firebase account service to use cloud storage.'
               : state.cloudAccount
-                ? 'Firebase accounts keep separate wallets on this device. Cloud backup and guest copying require separate confirmation in Connections.'
+                ? 'Signed-in wallets save to Firebase when connected. Previously downloaded records remain available offline. Existing device wallets are copied only after a separate preview and confirmation.'
                 : 'Accounts keep separate wallets on this device. Signing in does not upload or transfer your records.'}
           </Text>
           <View style={[ui.card, ui.gap]}>
@@ -151,8 +152,8 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
           ) : null}
           {state.provider === 'unconfigured' ? (
             <Text style={[ui.body, ui.gap]} testID="account-setup-help">
-              Local account access uses the optional Windows Auth emulator described in the project
-              setup guide. You can return to your wallet and keep tracking without it.
+              Configure your own Firebase project, or use the optional local Auth demonstration in
+              the setup guide. You can keep tracking in the guest wallet without signing in.
             </Text>
           ) : null}
           {state.provider === 'configured' && state.phase === 'ready' && !state.user ? (
@@ -375,7 +376,9 @@ function AccountScreenContent({ controller, state, onBack }: Props & { state: Ac
         <View>
           <Text style={ui.heading}>Return to your guest wallet?</Text>
           <Text style={[ui.body, ui.smallGap]}>
-            This account's saved records stay on this device. The guest wallet remains separate.
+            {state.cloudAccount
+              ? 'Confirmed account records remain in Firebase. Device drafts and conversations stay separate from the guest wallet.'
+              : "This account's saved records stay on this device. The guest wallet remains separate."}
           </Text>
           <View style={ui.gap}>
             <Action
@@ -433,7 +436,9 @@ export function WalletAccountEntry({
       detail={
         state.phase === 'ready'
           ? state.user
-            ? 'Separate local wallet for this account'
+            ? state.cloudAccount
+              ? 'Firebase account wallet'
+              : 'Separate local wallet for this account'
             : 'Using your guest wallet'
           : 'Review your saved session'
       }

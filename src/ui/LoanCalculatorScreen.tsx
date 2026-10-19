@@ -9,7 +9,7 @@ import {
 } from '../core/loan';
 import { amountInputValue, Currency, formatMoney, parseMoney } from '../core/model';
 import { Action, Choice, Field, FormError, Screen } from './components';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 
 type LoanDraft = { principal: string; rate: string; months: string };
 type AppliedLoan = { currency: Currency; loan: LoanResult };
@@ -17,6 +17,7 @@ const blankDraft = (): LoanDraft => ({ principal: '', rate: '', months: '' });
 const pageSize = 6;
 
 function ValueRow({ label, value, testID }: { label: string; value: string; testID?: string }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   return (
     <View style={styles.valueRow}>
       <Text style={[ui.body, ui.flex]}>{label}</Text>
@@ -34,6 +35,7 @@ export function LoanCalculatorScreen({
   currency: Currency;
   onBack: () => void;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const [draft, setDraft] = useState<LoanDraft>(blankDraft);
   const [applied, setApplied] = useState<AppliedLoan | null>(null);
   const [error, setError] = useState('');
@@ -302,7 +304,7 @@ export function LoanCalculatorScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   valueRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 15 },
   value: {
     maxWidth: '48%',

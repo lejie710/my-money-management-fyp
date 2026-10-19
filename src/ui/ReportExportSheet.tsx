@@ -6,7 +6,7 @@ import type { PdfUiServices } from './exportTypes';
 import { Sheet } from './components';
 import { PdfExportActions } from './PdfExportActions';
 import { usePdfExport } from './usePdfExport';
-import { ui } from './theme';
+import { useTheme } from './theme';
 
 export function ReportExportSheet({
   snapshot,
@@ -19,6 +19,7 @@ export function ReportExportSheet({
   services: PdfUiServices;
   onClose: () => void;
 }) {
+  const { colors, ui } = useTheme();
   const pdf = usePdfExport(snapshot, sessionKey, services);
   const money = (amount: number) => formatMoney(amount, snapshot.currency);
   return (
