@@ -5,6 +5,9 @@ import { useTheme } from './theme';
 import { formatMoney } from '../core/model';
 import type { CloudWalletController } from '../cloud/everydayController';
 
+const quantity = (count: number, noun: string) =>
+  String(count) + ' ' + noun + (count === 1 ? '' : 's');
+
 export function CloudWalletScreen({
   controller,
   onBack,
@@ -132,8 +135,8 @@ export function CloudWalletScreen({
               <Text style={ui.heading}>Copy this wallet to Firebase?</Text>
               <Text style={[ui.body, ui.smallGap]}>{preview.walletName}</Text>
               <Text style={ui.body}>
-                {preview.transactions} transactions · {preview.budgets} budgets · {preview.photos}{' '}
-                photos
+                {quantity(preview.transactions, 'transaction')} ·{' '}
+                {quantity(preview.budgets, 'budget')} · {quantity(preview.photos, 'photo')}
               </Text>
               <Text style={[ui.heading, ui.smallGap]}>
                 {formatMoney(preview.balanceMinor, preview.currency)}
@@ -173,7 +176,7 @@ export function CloudWalletScreen({
                     : 'This device kept your unsubmitted draft. Retry deliberately when connected.'}
               </Text>
               <Text style={[ui.hint, ui.smallGap]}>
-                {state.draft.transactions} transactions in draft · based on revision{' '}
+                {quantity(state.draft.transactions, 'transaction')} in draft · based on revision{' '}
                 {state.draft.baseRevision}
               </Text>
               <View style={ui.gap}>

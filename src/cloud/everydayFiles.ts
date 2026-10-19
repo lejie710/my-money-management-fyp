@@ -55,7 +55,8 @@ export function createEverydayPhotoServices(): EverydayFiles {
           directory.create({ intermediates: true });
           try {
             const temporary = new File(directory, item.photo.fileName);
-            temporary.write(bytes);
+            await temporary.write(bytes);
+            current();
             await manager.importRetained(item.photo, { uri: temporary.uri });
             current();
             const copied = await new File(files.uriFor(item.photo)).bytes();
