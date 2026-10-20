@@ -293,7 +293,7 @@ function totals(rows, currency) {
       !/\b(?:grand\s+total|amount\s+due|balance\s+due|total(?:\s+payable|\s+due)?)\b/i.test(
         row.text,
       ) ||
-      /\b(?:sub\s*total|subtotal|tax|vat|change|cash|tendered|discount|saving(?:s)?|items?|qty|points)\b/i.test(
+      /\b(?:sub[\s-]*total|subtotal|tax|vat|gst|sst|change|cash|tendered|discount|disc|saving(?:s)?|items?|qty|points)\b/i.test(
         row.text,
       )
     )

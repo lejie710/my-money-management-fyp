@@ -2,7 +2,15 @@
 
 This record separates automated checks, actual Android behavior and unverified external services. All application data used for verification is fictional. Earlier implementation checkpoints are retained in [Earlier verification records](VERIFICATION_HISTORY.md); their sample defaults, test counts and unfinished-integration notes describe those earlier stages.
 
-## Current completion checks: 19-20 October 2026
+## Receipt-label correction: 20 October 2026
+
+The parser now excludes hyphenated subtotal labels and GST/SST/abbreviated discount rows from both total suggestions and candidate alternatives. Unsupported final labels still require manual entry; a separate recognised `TOTAL` row remains usable, with explicit review required.
+
+Three new behaviour regressions failed before the correction and passed afterward. The focused `node --test tests/receipt.test.cjs` suite passed **16/16 tests**. The integrated `npm.cmd run check` passed **1,224 JavaScript tests and TypeScript**, with zero failures, cancellations or skips. The cases cover hyphen spacing and case, GST/SST, `Disc`/`Disc.` and genuine totals beside excluded rows. The fix was reviewed against the merged completion source `31fa09f93534e664a36c7818472565b80bd0d044`.
+
+This was a parser-only source check with synthetic OCR word geometry. Native OCR, Firebase emulators and live providers were not rerun for this correction; their separately recorded evidence and limits below remain unchanged.
+
+## Completion checkpoint: 19-20 October 2026
 
 At source commit `016f5c3bc473fe643cf24d64a286904a83722a63`, the final integrated `npm.cmd run check` passed **1,221 JavaScript tests and TypeScript** on 20 October 2026, after the PDF digit-extraction repair. All 1,221 tests passed, with zero failures, cancellations or skips. The command includes application, companion, Auth-helper and backend suites. Coverage includes everyday Firebase records and operation recovery, owner/session retirement, transaction/budget/goal drafts, saved assistant history, provider-specific context defaults, local/cloud storage disclosures, awaited native file-write boundaries, backup readiness on first visit and the exact Docker build-context file policy. These are local source checks, not hosted CI or live-provider verification.
 
