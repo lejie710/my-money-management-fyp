@@ -580,3 +580,142 @@ test('a configured cloud capture refuses local-provider output without producing
   assert.equal(f.calls.saved.length, 0);
   f.host.unmount();
 });
+
+function renderedReceipt(f, cloudAccount) {
+  const { loadSource } = require('./helpers/account-hook-harness.cjs');
+  const screenHost = createHookHost(),
+    reviewHost = createHookHost();
+  const native = {
+    Text: 'Text',
+    View: 'View',
+    Image: 'Image',
+    Pressable: 'Pressable',
+    ActivityIndicator: 'ActivityIndicator',
+    StyleSheet: { create: (value) => value },
+  };
+  const components = {
+    Action: 'Action',
+    Field: 'Field',
+    Choice: 'Choice',
+    FormError: 'FormError',
+    Sheet: 'Sheet',
+  };
+  const theme = require('./helpers/theme-stub.cjs').themeStub;
+  const review = loadSource(path.join(__dirname, '../src/ui/ReceiptReviewFields.tsx'), {
+    react: reviewHost.react,
+    'react-native': native,
+    '../core/model': model,
+    './components': components,
+    './theme': theme,
+  });
+  const screen = loadSource(path.join(__dirname, '../src/ui/ReceiptCaptureSheet.tsx'), {
+    react: screenHost.react,
+    'react-native': native,
+    './components': components,
+    './theme': theme,
+    './ReceiptReviewFields': review,
+    './useReceiptCapture': { useReceiptCapture: () => f.render() },
+  });
+  const nodes = (value) =>
+    !value || typeof value !== 'object'
+      ? []
+      : Array.isArray(value)
+        ? value.flatMap(nodes)
+        : [value, ...nodes(value.props?.children)];
+  const text = (value) =>
+    value == null
+      ? ''
+      : Array.isArray(value)
+        ? value.map(text).join('')
+        : typeof value === 'object'
+          ? text(value.props?.children)
+          : String(value);
+  return {
+    nodes,
+    text,
+    find: (tree, id) => nodes(tree).find((node) => node.props?.testID === id),
+    render() {
+      const outer = screen.ReceiptCaptureSheet({
+        ...f.props,
+        cloudAccount,
+        saveError: '',
+        onManualEntry() {},
+      });
+      const tree = screenHost.render(() => outer.type(outer.props));
+      const fields = nodes(tree).find((node) => node.type === review.ReceiptReviewFields);
+      return [
+        tree,
+        fields ? reviewHost.render(() => review.ReceiptReviewFields(fields.props)) : null,
+      ];
+    },
+    unmount() {
+      screenHost.unmount();
+      reviewHost.unmount();
+    },
+  };
+}
+
+for (const cloudAccount of [false, true]) {
+  test(`Vision recognition in a ${cloudAccount ? 'cloud' : 'guest'} wallet keeps photo retention separate from explicit financial confirmation`, async () => {
+    const f = fixture({ recognize: async () => cloudOcr() });
+    f.binding.provider = cloudProvider;
+    const ui = renderedReceipt(f, cloudAccount);
+    let tree = ui.render();
+    const disclosure = ui.find(tree, 'receipt-storage-disclosure');
+    if (cloudAccount) {
+      assert.match(ui.text(disclosure), /Saving confirms the expense in Firebase/);
+      assert.match(ui.text(disclosure), /If you choose to keep the receipt photo/);
+      assert.doesNotMatch(ui.text(disclosure), /saved on this device/);
+    } else {
+      assert.match(ui.text(disclosure), /saved on this device/);
+      assert.doesNotMatch(ui.text(disclosure), /Firebase/);
+    }
+    assert.equal(f.calls.recognize, 0);
+    assert.equal(f.calls.stage, 0);
+    assert.equal(f.calls.saved.length, 0);
+    ui.find(tree, 'receipt-pick-image').props.onPress();
+    await flush();
+    tree = ui.render();
+    assert.equal(f.calls.recognize, 0);
+    assert.equal(f.calls.stage, 0);
+    assert.equal(f.calls.saved.length, 0);
+    ui.find(tree, 'receipt-recognize').props.onPress();
+    await flush();
+    tree = ui.render();
+    assert.equal(f.calls.recognize, 1);
+    assert.equal(f.calls.stage, 0);
+    assert.equal(f.calls.saved.length, 0);
+    assert.equal(ui.find(tree, 'receipt-keep-photo').props.accessibilityState.checked, false);
+    assert.equal(ui.find(tree, 'receipt-save-expense').props.disabled, true);
+    assert.match(ui.text(tree), /No transaction has been saved/);
+    const all = ui.nodes(tree);
+    assert.ok(
+      all.indexOf(ui.find(tree, 'receipt-storage-disclosure')) <
+        all.indexOf(ui.find(tree, 'receipt-save-expense')),
+    );
+    ui.find(tree, 'receipt-keep-photo').props.onPress();
+    tree = ui.render();
+    assert.equal(ui.find(tree, 'receipt-keep-photo').props.accessibilityState.checked, true);
+    assert.equal(f.calls.stage, 0);
+    assert.equal(f.calls.saved.length, 0);
+    // Recognition alone never chooses the permanent attachment policy: undo the choice,
+    // then confirm a reviewed expense without keeping any photo in either storage mode.
+    ui.find(tree, 'receipt-keep-photo').props.onPress();
+    tree = ui.render();
+    ui.find(tree, 'receipt-category-expense-food').props.onPress();
+    tree = ui.render();
+    ui.find(tree, 'receipt-confirm-fields').props.onPress();
+    tree = ui.render();
+    assert.equal(ui.find(tree, 'receipt-save-expense').props.disabled, false);
+    assert.equal(f.calls.saved.length, 0);
+    ui.find(tree, 'receipt-save-expense').props.onPress();
+    await flush();
+    assert.equal(f.calls.saved.length, 1);
+    assert.equal(f.calls.saved[0].transactions[0].amountMinor, 1250);
+    assert.equal(f.calls.saved[0].transactions[0].context?.photo ?? null, null);
+    assert.equal(f.calls.stage, 0);
+    ui.unmount();
+    f.host.unmount();
+    await flush();
+  });
+}

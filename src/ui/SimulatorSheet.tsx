@@ -10,7 +10,7 @@ import { amountInputValue, formatMoney, goalProgressForBalance } from '../core/m
 import { Action, Field, FormError, Sheet } from './components';
 import { ProgressBar } from './PlanScreen';
 import { displayDate } from './TransactionsScreen';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 
 type ScenarioDraft = { income: string; expense: string; debt: string };
 type Props = {
@@ -31,6 +31,7 @@ function Comparison({
   scenario: string;
   testID: string;
 }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   return (
     <View style={styles.comparison}>
       <Text style={styles.comparisonLabel}>{label}</Text>
@@ -45,6 +46,7 @@ function Comparison({
 }
 
 export function SimulatorSheet({ baseline, goalTargetMinor, goalName, onClose }: Props) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const recordedInputs: CashFlowInputs = {
     incomeMinor: baseline.incomeMinor,
     expenseMinor: baseline.expenseMinor,
@@ -260,7 +262,7 @@ export function SimulatorSheet({ baseline, goalTargetMinor, goalName, onClose }:
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   comparison: { marginTop: 20 },
   comparisonLabel: { color: colors.text, fontSize: 15, lineHeight: 22, fontWeight: '600' },
   comparisonValue: {

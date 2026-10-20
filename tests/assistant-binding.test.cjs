@@ -4,7 +4,7 @@ const test = require('node:test'),
 const { hostWithStores, loadSource, ledger, owner } = require('./helpers/account-hook-harness.cjs');
 const { deferred, flush } = require('./helpers/native-adapter-vm.cjs');
 const protocol = require('../src/assistant/protocol');
-function fixture({ configured = true, work } = {}) {
+function fixture({ configured = true, provider, work } = {}) {
   const host = hostWithStores();
   host.react.useLayoutEffect = host.react.useEffect;
   const calls = [];
@@ -13,6 +13,7 @@ function fixture({ configured = true, work } = {}) {
     revision: 1,
     binding: configured
       ? {
+          ...(provider ? { providers: { assistant: provider } } : {}),
           assistant: async (payload, options) => {
             calls.push({ payload, ...options });
             return work ? work() : { model: 'synthetic', content: 'opaque', finishReason: 'stop' };
@@ -38,6 +39,8 @@ function fixture({ configured = true, work } = {}) {
       '../core/reports': require('../src/core/reports'),
       '../reminders/store': owner,
       '../assistant/client': protocol,
+      '../assistant/conversations': require('../src/assistant/conversations'),
+      '../accounts/identity': require('../src/accounts/identity'),
     },
     { AbortController },
   );
@@ -73,9 +76,80 @@ test('facts-only panel can open without transport and contains no financial writ
   assert.equal(view.panel.actorKey, owner.encodeReminderOwner(f.props.owner));
   assert.equal(view.hasOpenDraft, undefined);
   assert.equal(view.panel.onSave, undefined);
+  assert.deepEqual(
+    { ...view.panel.initialInclude },
+    {
+      categories: true,
+      budgets: true,
+      goal: true,
+      comparisons: true,
+    },
+  );
   assert.equal(f.calls.length, 0);
   f.host.unmount();
 });
+test('explicit local Qwen starts with category summaries and keeps extra groups opt-in', () => {
+  const provider = { engine: 'lemonade', processing: 'local', model: protocol.MODEL_ID };
+  const f = fixture({ provider }),
+    view = f.open();
+  const { buildAssistantContext } = require('../src/assistant/grounding');
+  const options = { ...view.panel.initialRange, include: view.panel.initialInclude };
+  const context = buildAssistantContext(f.props.ledger, options);
+  assert.deepEqual(
+    { ...context.selected },
+    {
+      allDatesBalance: false,
+      categories: true,
+      budgets: false,
+      goal: false,
+      health: false,
+      comparisons: false,
+    },
+  );
+  assert.ok(context.facts.some((fact) => fact.id === 'categoryScope'));
+  assert.equal(
+    context.facts.some((fact) => /^(budget|goal|comparison)/.test(fact.id)),
+    false,
+  );
+  const expanded = buildAssistantContext(f.props.ledger, {
+    ...options,
+    include: { ...options.include, budgets: true, goal: true, comparisons: true },
+  });
+  for (const id of ['budgetScope', 'goalScope', 'comparisonScope'])
+    assert.ok(expanded.facts.some((fact) => fact.id === id));
+  assert.equal(view.panel.provider, provider);
+  assert.equal(typeof view.panel.transport, 'function');
+  assert.equal(f.calls.length, 0);
+  f.host.unmount();
+});
+
+test('OpenAI keeps budgeting, goal and comparison summaries selected at open', () => {
+  const provider = { engine: 'openai', processing: 'cloud', model: 'synthetic-model' };
+  const f = fixture({ provider }),
+    view = f.open();
+  const { buildAssistantContext } = require('../src/assistant/grounding');
+  const context = buildAssistantContext(f.props.ledger, {
+    ...view.panel.initialRange,
+    include: view.panel.initialInclude,
+  });
+  assert.deepEqual(
+    { ...context.selected },
+    {
+      allDatesBalance: false,
+      categories: true,
+      budgets: true,
+      goal: true,
+      health: false,
+      comparisons: true,
+    },
+  );
+  for (const id of ['categoryScope', 'budgetScope', 'goalScope', 'comparisonScope'])
+    assert.ok(context.facts.some((fact) => fact.id === id));
+  assert.equal(view.panel.provider, provider);
+  assert.equal(f.calls.length, 0);
+  f.host.unmount();
+});
+
 test('root close synchronously aborts request and rejects ignored-abort response before publication', async () => {
   const pending = deferred(),
     f = fixture({ work: () => pending.promise }),
@@ -243,7 +317,7 @@ test('Reports assistant action uses the applied range through un-applied and inv
       Screen: 'Screen',
     },
     './TransactionsScreen': { displayDate: (value) => value },
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
     './HealthPanel': { HealthPanel: 'HealthPanel' },
     './ForecastEntry': { ForecastEntry: 'ForecastEntry' },
   });

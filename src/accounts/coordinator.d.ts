@@ -100,6 +100,8 @@ export type AccountCoordinator = {
   register(input: { email: string; password: string; displayName: string }): Promise<AccessResult>;
   signOut(): Promise<AccessResult>;
   retireSavedSession(token: string): Promise<AccessResult>;
+  /** Retries only the current configured account operation while its financial lease is held. */
+  retryCloudDraft(token: string): Promise<AccessResult>;
   updateDisplayName(name: string): Promise<AccessResult>;
   saveProfileExtras(extras: LocalProfileExtras): Promise<AccessResult>;
   /** Root calls only after a same-family financial commit and required owner activation are confirmed. No writes or scheduling. */
@@ -117,6 +119,8 @@ export function createAccountCoordinator(options: {
   auth: AccountAuthAdapter | null;
   financial: FinancialAccountAccess;
   storageForFamily(family: DataFamily): FamilyLedgerStorage;
+  /** Explicit alternate physical key for a configured live-cloud cache; defaults preserve legacy keys. */
+  storageKeyForFamily?(family: DataFamily): string;
   profileForFamily(family: DataFamily): ReturnType<typeof createProfileStore>;
   createGuestLedger?: () => Ledger;
   identityContext?: LedgerIdentityContext;

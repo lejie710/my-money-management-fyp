@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { Ledger, localDate } from '../core/model';
 import { Action, FormError } from './components';
 import { ForecastSheet } from './ForecastSheet';
-import { ui } from './theme';
+import { useTheme } from './theme';
 import type { ForecastTransportBinding } from '../forecast/client';
 
 export type ForecastEntryProps = {
@@ -24,6 +24,7 @@ export function ForecastEntryContent({
   transportBinding,
   getToday = localDate,
 }: ForecastEntryProps) {
+  const { colors, ui } = useTheme();
   const [asOfDate, setAsOfDate] = useState<string | null>(null);
   const [error, setError] = useState('');
   const open = () => {

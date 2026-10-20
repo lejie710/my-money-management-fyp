@@ -179,7 +179,7 @@ function harness() {
         FormError: 'FormError',
         Screen: 'Screen',
       },
-      './theme': { ui: {}, colors: {} },
+      './theme': require('./helpers/theme-stub.cjs').themeStub,
       '../core/model': model,
       ...imports,
     };

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 import type { PhotoRef } from '../core/transactionContext';
 import type { PhotoManager } from '../attachments/photoManager';
-import { colors, ui } from './theme';
+import { useTheme } from './theme';
 
 export function TransactionPhotoPreview({
   photo,
@@ -13,6 +13,7 @@ export function TransactionPhotoPreview({
   draftUri?: string;
   photos: PhotoManager | null;
 }) {
+  const { colors, ui } = useTheme();
   const key =
     draftUri ?? (photo ? `${photo.ownerIncarnationId}/${photo.id}/${photo.fileName}` : 'none');
   const [display, setDisplay] = useState<{

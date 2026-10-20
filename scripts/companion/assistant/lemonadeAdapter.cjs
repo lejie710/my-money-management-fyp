@@ -178,7 +178,7 @@ function createLemonadeAdapter({
         )
           throw new AssistantError("INVALID_MODEL_RESPONSE");
         // Exact pinned-template tokenization plus explicit completion/BOS margin; no truncation.
-        if (tokenized.tokens.length + 160 + 32 > 2048)
+        if (tokenized.tokens.length + 512 + 32 > 2048)
           throw new AssistantError("CONTEXT_TOO_LARGE");
         checkCancelled();
         completionPending = true;

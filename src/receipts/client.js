@@ -16,12 +16,15 @@ function utf8Length(value) {
   return size;
 }
 const copy = {
+  RATE_LIMITED: 'The selected receipt service reached its request limit. Try again later.',
+  PROVIDER_AUTH:
+    'The selected receipt provider rejected its server credential or access. Check the backend configuration.',
   PROVIDER_MISMATCH:
     'The receipt provider changed. Re-pair the companion before recognizing again.',
   PROVIDER_FAILED:
     'The selected recognition provider could not complete this request. Check its private configuration or use manual entry.',
   CLOUD_TOO_LARGE: 'Choose a receipt image no larger than 6 MiB for Google Cloud Vision.',
-  UNAUTHORIZED: 'The local receipt connection has expired. Reopen the companion connection.',
+  UNAUTHORIZED: 'The selected receipt connection has expired. Sign in or recheck the connection.',
   BUSY: 'Another receipt is being recognized. Wait before trying again.',
   TIMEOUT: 'Receipt recognition took too long. Try again deliberately or use manual entry.',
   CANCELLED: 'Receipt recognition was cancelled.',
@@ -35,7 +38,7 @@ const copy = {
   IMAGE_DIMENSIONS: 'Choose a smaller image for the Windows OCR engine.',
   TOO_LARGE: 'Choose a receipt image no larger than 10 MiB.',
   INVALID_RESPONSE: 'The local receipt response could not be verified.',
-  NETWORK: 'The local receipt service could not be reached. Your image selection was kept.',
+  NETWORK: 'The selected receipt service could not be reached. Your image selection was kept.',
 };
 class ReceiptClientError extends Error {
   constructor(code) {

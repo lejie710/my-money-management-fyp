@@ -38,7 +38,7 @@ function setup(name, imports = {}) {
         name,
       ]),
     ),
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
     './AppIcon': { AppIcon: 'AppIcon' },
     ...imports,
   })[name];
@@ -60,7 +60,7 @@ test('Connections exposes account, receipt, manual and report routes without sta
   };
   let tree = f.render(props);
   assert.deepEqual(calls, []);
-  assert.match(text(tree), /Everyday tracking works without a connection/);
+  assert.match(text(tree), /Guest tracking works without a connection/);
   assert.match(text(tree), /choosing a photo alone sends nothing/i);
   assert.equal(byId(tree, 'connections-assistant-status'), undefined);
   byId(tree, 'connections-account').props.onPress();
@@ -289,5 +289,30 @@ test('Connections describes only the selected local or cloud receipt and assista
       /availability is checked when you ask/,
     );
   }
+  f.host.unmount();
+});
+
+test('configured cloud wallet navigation explains confirmed writes and does not start a request', () => {
+  const f = setup('ConnectionsScreen', { './ReceiptEntry': { ReceiptEntry: 'ReceiptEntry' } });
+  const calls = [];
+  const tree = f.render({
+    accountState: { provider: 'configured', user: { displayName: 'Person' } },
+    connection: { phase: 'not-configured', binding: null },
+    busy: false,
+    cloudWalletConfigured: true,
+    onBack() {},
+    onAccount() {},
+    onReceipt() {},
+    onManualEntry() {},
+    onReports() {},
+    onCloudWallet: () => calls.push('cloud'),
+    onCloudBackup: () => calls.push('backup'),
+  });
+  assert.deepEqual(calls, []);
+  assert.match(text(tree), /Signed-in changes save to Firebase when connected/);
+  assert.match(text(tree), /unsaved edits stay as drafts/);
+  byId(tree, 'connections-cloud-wallet').props.onPress();
+  assert.deepEqual(calls, ['cloud']);
+  assert.ok(byId(tree, 'connections-cloud-backup'));
   f.host.unmount();
 });

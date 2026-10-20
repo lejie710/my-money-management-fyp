@@ -1,0 +1,44 @@
+# Runtime-only build context. Docker ignores trailing slashes, so exceptions
+# name exact files; never add directory or recursive include exceptions.
+# Test local import coverage with tools/backend/tests/docker-context.test.cjs.
+**
+!LICENSE
+!scripts/companion/assistant/openaiAdapter.cjs
+!scripts/companion/forecast/prophetAdapter.cjs
+!scripts/companion/ocr/googleVisionWorker.cjs
+!scripts/companion/owned_process.py
+!scripts/companion/providerWork.cjs
+!src/assistant/comparison.js
+!src/assistant/grounding.js
+!src/assistant/historyContext.js
+!src/assistant/protocol.js
+!src/assistant/providerResponse.js
+!src/attachments/imageHeader.js
+!src/companion/providerContract.js
+!src/core/achievementSchema.js
+!src/core/health.js
+!src/core/model.js
+!src/core/receipt.js
+!src/core/reports.js
+!src/core/transactionContext.js
+!src/forecast/protocol.js
+!src/services/contract.js
+!src/services/strictJson.js
+!tools/backend/.env.example
+!tools/backend/Dockerfile
+!tools/backend/README.md
+!tools/backend/bounded.cjs
+!tools/backend/firebaseAuth.cjs
+!tools/backend/forecast_service_main.py
+!tools/backend/linux_fit_guardian.py
+!tools/backend/linux_runner.py
+!tools/backend/main.cjs
+!tools/backend/prophetProcess.cjs
+!tools/backend/quota.cjs
+!tools/backend/requirements-python312.txt
+!tools/backend/server.cjs
+!tools/forecast/forecast_service.py
+!tools/forecast/monthly_forecast.py
+!tools/forecast/prophet_worker.py
+!tools/forecast/service_main.py
+!tools/forecast/windows_runner.py

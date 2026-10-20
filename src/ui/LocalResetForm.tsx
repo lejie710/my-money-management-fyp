@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { Action, Field, FormError } from './components';
 import type { LocalResetController } from './accountUiTypes';
 import { useAccountOperation, useLocalResetView } from './useAccountView';
-import { ui } from './theme';
+import { useTheme } from './theme';
 
 export function LocalResetForm({
   controller,
@@ -16,6 +16,7 @@ export function LocalResetForm({
   onBack: () => void;
   onSignIn: () => void;
 }) {
+  const { colors, ui } = useTheme();
   const state = useLocalResetView(controller);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

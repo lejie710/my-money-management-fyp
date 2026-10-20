@@ -26,6 +26,14 @@ A negative wallet balance displays zero progress while retaining the full amount
 
 Currency cannot change while the wallet has transaction history, budgets, or a goal. Relabeling an existing monetary amount would change its meaning without converting it. Start fresh explicitly creates an empty wallet and removes its transactions, custom categories, budgets, and goal.
 
+## Saving and resuming a plan
+
+Budget amount, category, period and date fields, and savings-goal kind/amount fields, are retained as unfinished drafts on this device. Partial amounts or dates do not need to be valid financial values to remain editable. Close and reopen the same form, including after an app restart, to choose Resume saved draft or Discard saved draft. Neither action automatically creates a budget or goal.
+
+The draft is scoped to its account family, wallet incarnation and form target. A changed saved financial base prevents a stale form from silently overwriting newer records. Failed persistence keeps the text visible for explicit retry. A confirmed financial save clears only the matching draft generation; a late completion cannot erase another editor's newer draft.
+
+Guest plans save locally. Configured Firebase account plans require server confirmation and become available when another device opens or refreshes the account wallet. Offline views use the last confirmed data; local drafts are not automatic cloud synchronization. An uncertain dispatched Save is handled by Cloud Wallet's separate operation recovery.
+
 ## Worked example
 
 Suppose October contains RM1,000 income, RM80 food, RM30 transport, and RM40 debt payments. September contains another RM50 food expense, and November contains RM20 food.
@@ -45,4 +53,4 @@ Answer: the October food budget becomes RM20 over its RM100 plan. The wallet bal
 
 Planning fields were introduced in the v3 store, preserving the original v1 and v2 saved bytes. The current v5 store first checks v4, then v3, then v2, then v1 when its own key is absent. Corrupt newer data stops migration instead of silently substituting an older copy. Existing valid records and extra fields on supported records survive migration. The [achievements guide](ACHIEVEMENTS_AND_REMINDERS.md) explains the additional v4 ownership fields.
 
-Model tests cover period boundaries, matching categories, duplicate budgets, reference safety, edit/delete propagation, negative balances, reached/exceeded goals, and migration failures. Native checks and their observed results are recorded in `VERIFICATION.md` after execution.
+Model tests cover period boundaries, matching categories, duplicate budgets, reference safety, edit/delete propagation, negative balances, reached/exceeded goals, and migration failures. The [verification record](../VERIFICATION.md) records completed native checks, draft recovery and current source gates separately.

@@ -45,6 +45,7 @@ export function useCloudBackup(options: {
             projectId: runtime.cloud.configuration?.firebase.projectId ?? null,
             mode: runtime.cloud.configuration?.mode ?? null,
             error: runtime.cloud.error,
+            sessionToken: runtime.presentation.getSnapshot().viewToken,
           };
         },
         async readGuest() {
@@ -73,6 +74,8 @@ export function useCloudBackup(options: {
     [
       controller,
       options.finance.ownerToken,
+      options.finance.bindingToken,
+      options.accountState.viewToken,
       options.active,
       options.accountState.busy,
       options.accountState.service,

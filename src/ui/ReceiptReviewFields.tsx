@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { amountInputValue, formatMoney, type Ledger } from '../core/model';
 import { Action, Choice, Field } from './components';
 import type { ReceiptCaptureDraft } from './useReceiptCapture';
-import { colors, ui } from './theme';
+import { useTheme } from './theme';
 
 export function ReceiptReviewFields({
   draft,
@@ -14,6 +14,7 @@ export function ReceiptReviewFields({
   ledger: Ledger;
   previewAvailable?: boolean;
 }) {
+  const { colors, ui } = useTheme();
   const [showRows, setShowRows] = useState(false);
   const [rowPage, setRowPage] = useState(0);
   const candidate = draft.candidate;

@@ -73,6 +73,7 @@ function createAccountCoordinator(options) {
       cell.options.financial !== options.financial ||
       cell.scopeToken !== scopeToken ||
       cell.options.storageForFamily !== options.storageForFamily ||
+      cell.options.storageKeyForFamily !== options.storageKeyForFamily ||
       cell.options.profileForFamily !== options.profileForFamily
     )
       throw new Error('An account runtime cannot change identity, scope or storage bindings.');
@@ -175,6 +176,7 @@ function createAccountCoordinator(options) {
     register: (input) => invoke(mutate, 'register', input),
     signOut: () => invoke(mutate, 'sign-out'),
     retireSavedSession: (token) => invoke(retireSavedSession, token),
+    retryCloudDraft: (token) => invoke(retryCloudDraft, token),
     updateDisplayName: (name) => invoke(mutate, 'profile', name),
     saveProfileExtras: (extras) => invoke(saveExtras, extras),
     observeCommittedWallet(family, ledger) {
@@ -358,7 +360,9 @@ async function readTarget(cell, family) {
 async function readTargetUnlocked(cell, family) {
   const storage = cell.options.storageForFamily(family),
     token = encodeDataFamily(family);
-  if (storage?.key !== familyStorageKeys(family).key)
+  if (
+    storage?.key !== (cell.options.storageKeyForFamily?.(family) ?? familyStorageKeys(family).key)
+  )
     throw new Error('The wallet binding belongs to another family.');
   let ledger = cell.unknownWrites.has(token) ? await storage.readCurrent() : await storage.load();
   if (cell.unknownWrites.has(token) && ledger === null)
@@ -528,7 +532,8 @@ async function settle(cell, message = '') {
           encodeDataFamily(target.family) !== expectedFamilyToken ||
           target.ownerToken !== expectedOwnerToken ||
           encodeReminderOwner(target.owner) !== expectedOwnerToken ||
-          target.storage.key !== familyStorageKeys(family).key ||
+          target.storage.key !==
+            (cell.options.storageKeyForFamily?.(family) ?? familyStorageKeys(family).key) ||
           encodeReminderOwner({
             ...family,
             incarnationId: validateLedger(target.ledger).wallet.incarnationId,
@@ -607,7 +612,7 @@ async function settle(cell, message = '') {
       message:
         message ||
         (afterExtras.user
-          ? 'The account and its local wallet are ready.'
+          ? 'The account and its wallet are ready.'
           : 'The guest wallet is ready.'),
       ...extras,
     });
@@ -622,6 +627,53 @@ async function settle(cell, message = '') {
     message: unavailable().message,
   });
   return unavailable();
+}
+function retryCloudDraft(cell, operationToken) {
+  if (typeof operationToken !== 'string' || !/^wallet-[a-z0-9-]{16,96}$/.test(operationToken))
+    return Promise.resolve(result(false, false, 'Choose the current cloud recovery operation.'));
+  return run(cell, async () => {
+    if (!(await acquire(cell, 'reconcile')))
+      return result(false, true, 'Confirm the active financial operation before cloud recovery.');
+    const identity = await inspectIdentity(cell);
+    if (
+      identity.persistence !== 'confirmed' ||
+      identity.mutationPending ||
+      !identity.user ||
+      !cell.options.firebaseProjectId
+    )
+      return result(false, true, 'A confirmed configured account is required for cloud recovery.');
+    const family = familyForUser(cell.options.scope, identity.user, cell.options.firebaseProjectId);
+    const token = encodeDataFamily(family);
+    if ([...cell.unknownWrites].some((value) => value !== token))
+      return result(false, true, 'Another account has an unresolved financial write.');
+    const storage = cell.options.storageForFamily(family);
+    if (storage.kind !== 'firebase-live' || typeof storage.retryDraft !== 'function')
+      return result(false, false, 'This account does not use a cloud wallet.');
+    cell.financialWork++;
+    try {
+      await storage.retryDraft(operationToken);
+      const saved = await storage.readCurrent();
+      if (!saved) throw new Error('Cloud wallet is missing.');
+      validateLedger(saved);
+      cell.unknownWrites.delete(token);
+    } catch {
+      cell.unknownWrites.add(token);
+      publish(cell, {
+        phase: 'wallet-unavailable',
+        family,
+        user: identity.user,
+        activeOwnerToken: null,
+        operation: null,
+        persistence: 'confirmed',
+        message:
+          'The cloud save remains unconfirmed. Its operation and device records were retained.',
+      });
+      return result(false, true, cell.view.message);
+    } finally {
+      cell.financialWork--;
+    }
+    return settle(cell, 'The retained cloud save was reconciled.');
+  });
 }
 function sessionRecoveryMessage(identity) {
   if (identity?.sessionRetired)
@@ -854,11 +906,11 @@ function mutate(cell, operation, input) {
           : user?.email?.toLowerCase() === intendedEmail;
     const partial = operation === 'register' && achieved && cell.view.profileNamePending;
     const message = partial
-      ? 'Your account was created and its local wallet is ready. The display name update is pending; open Profile to retry it.'
+      ? 'Your account was created and its wallet is ready. The display name update is pending; open Profile to retry it.'
       : achieved
         ? operation === 'profile'
           ? 'Display name saved.'
-          : 'Account access is confirmed. The selected local wallet is ready.'
+          : 'Account access is confirmed. The selected wallet is ready.'
         : failure ||
           'The requested identity change was not confirmed. The actual saved session is now shown.';
     publish(cell, { message });

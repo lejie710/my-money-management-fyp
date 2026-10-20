@@ -9,9 +9,9 @@ import {
   totals,
   Transaction,
 } from '../core/model';
-import { Screen } from './components';
+import { Action, FormError, Screen } from './components';
 import { AppIcon } from './AppIcon';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 import { typeLabels } from './TransactionEditor';
 
 const months = [
@@ -61,6 +61,17 @@ export function TransactionsScreen({
   onShare?: (transaction: Transaction) => void;
   receiptTools?: React.ReactNode;
 }) {
+  const {
+    colors,
+    ui,
+    styles,
+    balanceHidden,
+    preferencesReady,
+    preferencesSaving,
+    preferenceError,
+    setBalanceHidden,
+    retryPreferences,
+  } = useThemedStyles(createStyles);
   const [month, setMonth] = useState(() => clampMonth(localDate().slice(0, 7)));
   const [allTime, setAllTime] = useState(true);
   const { fontScale, width } = useWindowDimensions();
@@ -94,11 +105,56 @@ export function TransactionsScreen({
           <AppIcon name="wallet" size={20} color={colors.muted} />
           <Text style={styles.walletName}>{ledger.wallet.name}</Text>
         </View>
-        <Text style={styles.balanceLabel}>Wallet balance</Text>
-        <Text selectable testID="wallet-balance" style={styles.balance}>
-          {money(summary.balance)}
+        <View style={[ui.between, { flexWrap: 'wrap' }]}>
+          <Text style={styles.balanceLabel}>Wallet balance</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              balanceHidden ? 'Show home wallet balance' : 'Hide home wallet balance'
+            }
+            accessibilityHint="Only the balance at the top of Activity is hidden. Other amounts stay visible."
+            accessibilityState={{ disabled: !preferencesReady || preferencesSaving }}
+            disabled={!preferencesReady || preferencesSaving}
+            onPress={() => {
+              void setBalanceHidden(!balanceHidden);
+            }}
+            style={({ pressed }) => [
+              styles.balanceToggle,
+              pressed && ui.pressed,
+              (!preferencesReady || preferencesSaving) && ui.disabled,
+            ]}
+            testID="toggle-home-balance"
+          >
+            <AppIcon name={balanceHidden ? 'eye' : 'eyeoff'} size={20} />
+            <Text style={styles.balanceToggleText}>{balanceHidden ? 'Show' : 'Hide'}</Text>
+          </Pressable>
+        </View>
+        <Text
+          selectable={!balanceHidden}
+          accessibilityLabel={balanceHidden ? 'Wallet balance hidden' : undefined}
+          testID="wallet-balance"
+          style={styles.balance}
+        >
+          {balanceHidden ? '••••••' : money(summary.balance)}
         </Text>
-        <Text style={ui.hint}>Across all recorded dates</Text>
+        <Text style={ui.hint}>
+          {balanceHidden
+            ? 'Only this balance is hidden. Transactions and reports stay visible.'
+            : 'Across all recorded dates'}
+        </Text>
+        <FormError message={preferenceError} testID="balance-preference-error" />
+        {!preferencesReady && preferenceError ? (
+          <View style={ui.smallGap}>
+            <Action
+              label="Retry display preferences"
+              secondary
+              onPress={() => {
+                void retryPreferences();
+              }}
+              testID="balance-preference-retry"
+            />
+          </View>
+        ) : null}
       </View>
       {receiptTools}
 
@@ -299,166 +355,190 @@ export function TransactionsScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  titleRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  balanceSurface: {
-    backgroundColor: colors.surface,
-    borderRadius: 22,
-    borderCurve: 'continuous',
-    padding: 18,
-    marginTop: 18,
-  },
-  walletHeading: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 10 },
-  walletName: { flex: 1, color: colors.muted, fontSize: 15, lineHeight: 21, fontWeight: '500' },
-  balanceLabel: { color: colors.muted, fontSize: 15, lineHeight: 21 },
-  balance: {
-    color: colors.text,
-    fontSize: 38,
-    lineHeight: 46,
-    fontWeight: '600',
-    letterSpacing: -1.2,
-    marginTop: 4,
-    marginBottom: 9,
-    fontVariant: ['tabular-nums'],
-  },
-  addAction: {
-    minHeight: 48,
-    minWidth: 88,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: 14,
-    backgroundColor: colors.accent,
-  },
-  addLabel: { color: colors.onAccent, fontSize: 16, lineHeight: 22, fontWeight: '600' },
-  sectionHeader: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginTop: 28,
-    marginBottom: 12,
-  },
-  segmented: {
-    flexDirection: 'row',
-    padding: 3,
-    gap: 3,
-    borderRadius: 13,
-    backgroundColor: colors.raised,
-  },
-  segment: {
-    flex: 1,
-    minHeight: 48,
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 10,
-  },
-  selectedSegment: {
-    backgroundColor: colors.surface,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  segmentText: {
-    color: colors.muted,
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  selectedSegmentText: { color: colors.text },
-  monthBar: { marginTop: 12, backgroundColor: colors.surface, borderRadius: 13 },
-  monthButton: { width: 50, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  monthText: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '600', textAlign: 'center' },
-  activity: {
-    marginTop: 16,
-    padding: 18,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surface,
-  },
-  summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 16, columnGap: 12 },
-  summaryCell: { flexGrow: 1, flexBasis: '44%', minWidth: 120 },
-  summaryValue: {
-    color: colors.text,
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: '600',
-    marginTop: 4,
-    fontVariant: ['tabular-nums'],
-  },
-  listHint: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 20, marginBottom: 10 },
-  list: {
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    overflow: 'hidden',
-    borderCurve: 'continuous',
-  },
-  transaction: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 10,
-    alignItems: 'flex-start',
-    minHeight: 80,
-  },
-  transactionBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
-  transactionContent: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  roomyContent: { flexDirection: 'column', gap: 8 },
-  transactionInfo: { flex: 1, minWidth: 0 },
-  roomyInfo: { flex: 0, alignSelf: 'stretch' },
-  typeBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: colors.raised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  incomeBadge: { backgroundColor: colors.greenSoft },
-  transactionTitle: { color: colors.text, fontWeight: '600', fontSize: 16, lineHeight: 22 },
-  transactionCategory: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 3 },
-  transactionDate: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
-  amountColumn: { alignItems: 'flex-end', flexShrink: 1, maxWidth: '47%' },
-  roomyAmount: { alignSelf: 'stretch', maxWidth: '100%' },
-  transactionAmount: {
-    color: colors.text,
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    textAlign: 'right',
-  },
-  shareAction: {
-    minHeight: 48,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 6,
-  },
-  shareLabel: {
-    color: colors.accent,
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: '500',
-    flexShrink: 1,
-    textAlign: 'right',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    titleRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    balanceSurface: {
+      backgroundColor: colors.surface,
+      borderRadius: 22,
+      borderCurve: 'continuous',
+      padding: 18,
+      marginTop: 18,
+    },
+    walletHeading: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 10 },
+    walletName: { flex: 1, color: colors.muted, fontSize: 15, lineHeight: 21, fontWeight: '500' },
+    balanceToggle: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 8,
+    },
+    balanceToggleText: { color: colors.accent, fontSize: 14, lineHeight: 20, fontWeight: '500' },
+    balanceLabel: { color: colors.muted, fontSize: 15, lineHeight: 21 },
+    balance: {
+      color: colors.text,
+      fontSize: 38,
+      lineHeight: 46,
+      fontWeight: '600',
+      letterSpacing: -1.2,
+      marginTop: 4,
+      marginBottom: 9,
+      fontVariant: ['tabular-nums'],
+    },
+    addAction: {
+      minHeight: 48,
+      minWidth: 88,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      borderRadius: 14,
+      backgroundColor: colors.accentFill,
+    },
+    addLabel: { color: colors.onAccent, fontSize: 16, lineHeight: 22, fontWeight: '600' },
+    sectionHeader: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      gap: 8,
+      marginTop: 28,
+      marginBottom: 12,
+    },
+    segmented: {
+      flexDirection: 'row',
+      padding: 3,
+      gap: 3,
+      borderRadius: 13,
+      backgroundColor: colors.raised,
+    },
+    segment: {
+      flex: 1,
+      minHeight: 48,
+      paddingHorizontal: 10,
+      paddingVertical: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRadius: 10,
+    },
+    selectedSegment: {
+      backgroundColor: colors.surface,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 2,
+      elevation: 1,
+    },
+    segmentText: {
+      color: colors.muted,
+      fontSize: 15,
+      lineHeight: 21,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    selectedSegmentText: { color: colors.text },
+    monthBar: { marginTop: 12, backgroundColor: colors.surface, borderRadius: 13 },
+    monthButton: { width: 50, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+    monthText: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    activity: {
+      marginTop: 16,
+      padding: 18,
+      borderRadius: 18,
+      borderCurve: 'continuous',
+      backgroundColor: colors.surface,
+    },
+    summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 16, columnGap: 12 },
+    summaryCell: { flexGrow: 1, flexBasis: '44%', minWidth: 120 },
+    summaryValue: {
+      color: colors.text,
+      fontSize: 18,
+      lineHeight: 24,
+      fontWeight: '600',
+      marginTop: 4,
+      fontVariant: ['tabular-nums'],
+    },
+    listHint: {
+      color: colors.muted,
+      fontSize: 13,
+      lineHeight: 19,
+      marginTop: 20,
+      marginBottom: 10,
+    },
+    list: {
+      borderRadius: 18,
+      backgroundColor: colors.surface,
+      overflow: 'hidden',
+      borderCurve: 'continuous',
+    },
+    transaction: {
+      flexDirection: 'row',
+      gap: 12,
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 10,
+      alignItems: 'flex-start',
+      minHeight: 80,
+    },
+    transactionBorder: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
+    },
+    transactionContent: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+    roomyContent: { flexDirection: 'column', gap: 8 },
+    transactionInfo: { flex: 1, minWidth: 0 },
+    roomyInfo: { flex: 0, alignSelf: 'stretch' },
+    typeBadge: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor: colors.raised,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    incomeBadge: { backgroundColor: colors.greenSoft },
+    transactionTitle: { color: colors.text, fontWeight: '600', fontSize: 16, lineHeight: 22 },
+    transactionCategory: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 3 },
+    transactionDate: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
+    amountColumn: { alignItems: 'flex-end', flexShrink: 1, maxWidth: '47%' },
+    roomyAmount: { alignSelf: 'stretch', maxWidth: '100%' },
+    transactionAmount: {
+      color: colors.text,
+      fontSize: 16,
+      lineHeight: 22,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+      textAlign: 'right',
+    },
+    shareAction: {
+      minHeight: 48,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      gap: 6,
+    },
+    shareLabel: {
+      color: colors.accent,
+      fontSize: 13,
+      lineHeight: 19,
+      fontWeight: '500',
+      flexShrink: 1,
+      textAlign: 'right',
+    },
+  });

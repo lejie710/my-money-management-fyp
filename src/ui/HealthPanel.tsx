@@ -5,7 +5,7 @@ import { Goal, GOAL_KINDS } from '../core/model';
 import { PeriodReport } from '../core/reports';
 import { Action } from './components';
 import { SimulatorSheet } from './SimulatorSheet';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 
 type ScenarioSnapshot = {
   baseline: SimulationBaseline;
@@ -14,6 +14,7 @@ type ScenarioSnapshot = {
 };
 
 export function HealthPanel({ report, goal }: { report: PeriodReport; goal: Goal | null }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const [showFormula, setShowFormula] = useState(false);
   const [snapshot, setSnapshot] = useState<ScenarioSnapshot | null>(null);
   const health = useMemo(
@@ -121,7 +122,7 @@ export function HealthPanel({ report, goal }: { report: PeriodReport; goal: Goal
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   score: {
     color: colors.purple,
     fontSize: 36,

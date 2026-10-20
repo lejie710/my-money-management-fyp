@@ -21,19 +21,15 @@ function rootHost(f) {
   };
   const host = hostWithStores();
   host.react.useLayoutEffect = host.react.useEffect;
-  const accountView = loadSource(
-    path.join(__dirname, '../src/ui/useAccountView.ts'),
-    { react: host.react },
-  );
-  const gate = loadSource(
-    path.join(__dirname, '../src/ui/AccountAccessGate.tsx'),
-    {
-      react: host.react,
-      'react-native': {},
-      './components': {},
-      './theme': { colors: {}, ui: {} },
-    },
-  );
+  const accountView = loadSource(path.join(__dirname, '../src/ui/useAccountView.ts'), {
+    react: host.react,
+  });
+  const gate = loadSource(path.join(__dirname, '../src/ui/AccountAccessGate.tsx'), {
+    react: host.react,
+    'react-native': {},
+    './components': {},
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
+  });
   let assistantClosed = 0;
   const assistant = {
     close() {
@@ -66,7 +62,15 @@ function rootHost(f) {
         return { close() {} };
       },
     },
-    './useCompanionConnection': { useCompanionConnection: () => ({ phase: 'disabled' }) },
+    '../services/useServiceConnection': {
+      useServiceConnection: () => ({ phase: 'disabled', source: 'local' }),
+    },
+    './useCloudWallet': {
+      useCloudWallet: () => ({
+        controller: null,
+        state: { configured: false, signedIn: false, readOnly: true },
+      }),
+    },
     './useReceiptSession': {
       useReceiptSession(options) {
         receiptBindings.push(options);

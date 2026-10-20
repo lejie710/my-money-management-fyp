@@ -12,7 +12,7 @@ import { formatMoney } from '../core/model';
 import { Action, FormError } from './components';
 import { ExportContextOptions, SelectedExportDetails } from './ExportContextOptions';
 import type { QrRenderProps, RenderTransactionQr } from './exportTypes';
-import { ui } from './theme';
+import { useTheme } from './theme';
 
 class QrBoundary extends React.Component<
   { children: React.ReactNode; onError: () => void },
@@ -47,6 +47,7 @@ export function TransactionQrPanel({
   source: TransactionExportSource;
   renderQr: RenderTransactionQr;
 }) {
+  const { colors, ui } = useTheme();
   const [selection, setSelection] = useState<ContextSelection>(() => ({
     ...DEFAULT_CONTEXT_SELECTION,
   }));

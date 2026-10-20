@@ -566,3 +566,63 @@ test('an unjournaled target is inspected only: absent is complete, present or un
     false,
   );
 });
+
+test('remote hydration imports only an already retained exact photo and records ownership before copying', async () => {
+  const f = setup();
+  const photo = {
+    id: 'photo-remote',
+    ownerIncarnationId: f.ledger.wallet.incarnationId,
+    fileName: 'photo-remote.png',
+    ...inspection,
+  };
+  await assert.rejects(
+    f.manager.importRetained(photo, { uri: 'file:///cache/download.png' }),
+    /retained/,
+  );
+  assert.equal(f.calls.filter((row) => row[0] === 'copy').length, 0);
+  await f.store.save(withPhoto(f.ledger, photo));
+  const original = f.files.copyIntoOwned;
+  f.files.copyIntoOwned = async (uri, value) => {
+    assert.equal(JSON.parse(f.data.get(f.manager.journalKey)).entries[0].phase, 'copying');
+    await original(uri, value);
+  };
+  assert.deepEqual(
+    await f.manager.importRetained(photo, { uri: 'file:///cache/download.png' }),
+    photo,
+  );
+  assert.equal(f.calls.filter((row) => row[0] === 'copy').length, 1);
+  assert.equal((await f.manager.retryCleanup()).retained, 1);
+  await f.manager.importRetained(photo, { uri: f.files.uriFor(photo) });
+  assert.equal(
+    f.calls.filter((row) => row[0] === 'copy').length,
+    1,
+    'Existing exact owned image is never overwritten.',
+  );
+  assert.equal(f.fileData.has(f.fileKey(photo)), true);
+});
+
+test('remote hydration preserves ownership intent on copy failure and rejects mismatching metadata', async () => {
+  const f = setup();
+  const photo = {
+    id: 'photo-remote',
+    ownerIncarnationId: f.ledger.wallet.incarnationId,
+    fileName: 'photo-remote.png',
+    ...inspection,
+  };
+  await f.store.save(withPhoto(f.ledger, photo));
+  f.files.copyIntoOwned = async () => {
+    throw Error('copy failed');
+  };
+  await assert.rejects(
+    f.manager.importRetained(photo, { uri: 'file:///cache/download.png' }),
+    /could not be confirmed/,
+  );
+  assert.equal(JSON.parse(f.data.get(f.manager.journalKey)).entries[0].phase, 'copying');
+  f.files.inspectSource = async () => ({ ...inspection, width: 200 });
+  await assert.rejects(
+    f.manager.importRetained(photo, { uri: 'file:///cache/download.png' }),
+    /does not match/,
+  );
+  assert.equal((await f.manager.retryCleanup()).retained, 1);
+  assert.equal(f.data.get(f.key), JSON.stringify(withPhoto(f.ledger, photo)));
+});

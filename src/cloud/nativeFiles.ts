@@ -153,7 +153,8 @@ export function createBackupFileServices() {
             info.mimeType
           ];
           const file = new File(temporary, `${item.sha256}.${extension}`);
-          file.write(bytes);
+          await file.write(bytes);
+          current();
           try {
             refs[item.sha256] = await manager.stage(draft, { uri: file.uri });
           } finally {

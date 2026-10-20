@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { Text, View } from 'react-native';
 import { Action, Choice, FormError, Screen } from './components';
-import { ui } from './theme';
+import { useTheme } from './theme';
 import { formatMoney } from '../core/model';
 import type { BackupController, CloudPreview } from '../cloud/backupCoordinator';
 
 const quantity = (count: number, noun: string) =>
   String(count) + ' ' + noun + (count === 1 ? '' : 's');
-function Preview({ value }: { value: CloudPreview }) {
+function Preview({ value, liveWallet = false }: { value: CloudPreview; liveWallet?: boolean }) {
+  const { colors, ui } = useTheme();
   return (
     <View style={[ui.card, ui.gap]}>
       <Text style={ui.heading}>
@@ -31,7 +32,9 @@ function Preview({ value }: { value: CloudPreview }) {
       <Text style={[ui.hint, ui.smallGap]}>
         {value.kind === 'backup'
           ? 'Financial records, notes and person/place labels will be stored in your configured Firebase project. Photos follow your selection.'
-          : 'Only an unchanged empty account wallet can receive these records. Sessions and scheduled notifications are not copied.'}
+          : liveWallet
+            ? 'Restoring saves these records and selected attachments into your unchanged empty Firebase wallet. Other devices can retrieve the restored wallet. Scheduled notifications are not copied.'
+            : 'Only an unchanged empty account wallet can receive these records. Sessions and scheduled notifications are not copied.'}
       </Text>
     </View>
   );
@@ -40,11 +43,16 @@ export function CloudBackupScreen({
   controller,
   onBack,
   onAccount,
+  liveWallet = false,
+  onCloudWallet,
 }: {
   controller: BackupController;
   onBack(): void;
   onAccount?(): void;
+  liveWallet?: boolean;
+  onCloudWallet?(): void;
 }) {
+  const { colors, ui } = useTheme();
   const state = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
@@ -70,7 +78,9 @@ export function CloudBackupScreen({
       />
       <Text style={[ui.title, ui.gap]}>Cloud Backup</Text>
       <Text style={[ui.body, ui.smallGap]}>
-        Keep a deliberate copy of your wallet. Ordinary edits stay on this device.
+        {liveWallet
+          ? 'Keep a separate recovery snapshot of your Firebase wallet. Everyday account edits already save to Firebase.'
+          : 'Keep a deliberate copy of your wallet. Ordinary edits stay on this device.'}
       </Text>
       {!state.setup.configured ? (
         <View style={[ui.card, ui.gap]}>
@@ -89,7 +99,7 @@ export function CloudBackupScreen({
       {state.setup.configured && !state.setup.signedIn ? (
         <Text style={[ui.body, ui.gap]}>
           Sign in through Connections → Account before backing up. Signing in keeps the guest wallet
-          separate and uploads nothing.
+          separate. Existing guest records are copied only after your confirmation.
         </Text>
       ) : null}
       {state.setup.configured && !state.setup.signedIn && onAccount ? (
@@ -185,24 +195,44 @@ export function CloudBackupScreen({
               testID="cloud-preview-backup"
             />
           </View>
-          <View style={ui.smallGap}>
-            <Action
-              label="Preview guest wallet copy"
-              secondary
-              disabled={state.busy}
-              onPress={() => {
-                void controller.previewGuestCopy(photos);
-              }}
-              testID="cloud-preview-guest"
-            />
-          </View>
-          <Text style={[ui.hint, ui.smallGap]}>
-            Guest copying requires an empty account wallet. The original guest wallet stays on this
-            device; copying does not upload it.
-          </Text>
+          {liveWallet ? (
+            <View style={ui.smallGap}>
+              <Text style={ui.hint}>
+                Use Cloud wallet to preview and confirm a copy of existing device records into an
+                empty Firebase wallet.
+              </Text>
+              {onCloudWallet ? (
+                <Action
+                  label="Open Cloud wallet"
+                  secondary
+                  disabled={state.busy}
+                  onPress={onCloudWallet}
+                  testID="cloud-open-live-wallet"
+                />
+              ) : null}
+            </View>
+          ) : (
+            <>
+              <View style={ui.smallGap}>
+                <Action
+                  label="Preview guest wallet copy"
+                  secondary
+                  disabled={state.busy}
+                  onPress={() => {
+                    void controller.previewGuestCopy(photos);
+                  }}
+                  testID="cloud-preview-guest"
+                />
+              </View>
+              <Text style={[ui.hint, ui.smallGap]}>
+                Guest copying requires an empty account wallet. The original guest wallet stays on
+                this device; copying does not upload it.
+              </Text>
+            </>
+          )}
           {state.preview ? (
             <>
-              <Preview value={state.preview} />
+              <Preview value={state.preview} liveWallet={liveWallet} />
               <View style={ui.gap}>
                 <Action
                   label={
@@ -210,10 +240,13 @@ export function CloudBackupScreen({
                       ? 'Confirm cloud backup'
                       : state.preview.kind === 'guest-copy'
                         ? 'Confirm copy to empty wallet'
-                        : 'Confirm restore to empty wallet'
+                        : liveWallet
+                          ? 'Confirm restore to Firebase wallet'
+                          : 'Confirm restore to empty wallet'
                   }
-                  disabled={state.busy}
+                  disabled={state.busy || (liveWallet && state.preview.kind === 'guest-copy')}
                   onPress={() => {
+                    if (liveWallet && state.preview?.kind === 'guest-copy') return;
                     void (state.preview!.kind === 'backup'
                       ? controller.confirmBackup()
                       : state.preview!.kind === 'guest-copy'

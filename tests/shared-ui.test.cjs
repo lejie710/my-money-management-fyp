@@ -21,7 +21,7 @@ function fixture() {
       useWindowDimensions: () => ({ width: 360, height: 780 }),
     },
     './AppIcon': { AppIcon: 'AppIcon' },
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
   });
   const find = (node, predicate) => {
     if (!node || typeof node !== 'object') return null;

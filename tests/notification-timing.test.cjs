@@ -421,7 +421,7 @@ test('unavailable reminder screens remove Settings scheduling paths while keepin
         if (module === './ReminderEditor') return { ReminderEditor: 'ReminderEditor' };
         if (module === './reminderDisplay')
           return { deviceTimeZone: () => 'Test/Zone', reminderTime: () => 'Synthetic time' };
-        if (module === './theme') return { colors: {}, ui: {} };
+        if (module === './theme') return require('./helpers/theme-stub.cjs').themeStub;
         if (module === '../reminders/expoAdapter')
           return {
             localReminderUnavailableReason: () =>

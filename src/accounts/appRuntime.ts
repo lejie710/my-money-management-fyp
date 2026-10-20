@@ -6,7 +6,7 @@ import {
   type AccountAuthAdapter,
   type AccessResult,
 } from './coordinator';
-import { createFamilyLedgerStorage } from './familyStorage';
+import { createFamilyLedgerStorage, familyStorageKeys } from './familyStorage';
 import { createProfileStore } from './profileStore';
 import { encodeDataFamily, type DataFamily, type DataScope } from './identity';
 import { createFinancialAccountBridge } from './financialBridge';
@@ -14,6 +14,8 @@ import { createAccountPresentation } from './accountPresentation';
 import type { CloudConfiguration } from '../cloud/config';
 import type { LocalFirebaseAuthAdapter } from './firebaseAdapter';
 import type { LocalResetController } from '../ui/accountUiTypes';
+import type { LedgerStorage } from '../ui/ledgerRuntime';
+import type { EverydayCloudStore } from '../cloud/everydayStore';
 import {
   localLedgerScope,
   createLocalInitialLedger,
@@ -69,7 +71,7 @@ export function createAccountAppRuntime(options: {
       return options.getClock();
     },
   };
-  const storageForFamily = (target: DataFamily) => {
+  const localStorageForFamily = (target: DataFamily) => {
     const token = encodeDataFamily(target);
     let store = stores.get(token);
     if (!store) {
@@ -78,6 +80,67 @@ export function createAccountAppRuntime(options: {
     }
     return store;
   };
+  const cloudStores = new Map<string, EverydayCloudStore>();
+  const isCloudFamily = (target: DataFamily) =>
+    !!options.cloudConfiguration &&
+    target.actor.kind === 'firebase-hosted' &&
+    target.actor.projectId === options.cloudConfiguration.firebase.projectId;
+  const everydayStorageForFamily = (target: DataFamily): EverydayCloudStore => {
+    if (
+      !isCloudFamily(target) ||
+      target.actor.kind !== 'firebase-hosted' ||
+      !options.auth?.getSdkContext
+    )
+      throw new Error('This account does not have a configured cloud wallet.');
+    const token = encodeDataFamily(target);
+    let store = cloudStores.get(token);
+    if (!store) {
+      const { createEverydayCloudStore } =
+        require('../cloud/everydayStore') as typeof import('../cloud/everydayStore');
+      const { createFirebasePorts } =
+        require('../cloud/firebasePorts') as typeof import('../cloud/firebasePorts');
+      const { createEverydayPhotoServices } =
+        require('../cloud/everydayFiles') as typeof import('../cloud/everydayFiles');
+      const owner = { projectId: target.actor.projectId, uid: target.actor.uid };
+      const getContext = () => {
+        const context = options.auth!.getSdkContext!();
+        if (
+          context.uid !== owner.uid ||
+          context.configuration.firebase.projectId !== owner.projectId
+        )
+          throw new Error('The cloud account changed.');
+        return context;
+      };
+      store = createEverydayCloudStore({
+        family: target,
+        deviceStorage: checkedStorage,
+        legacyStorage: localStorageForFamily(target),
+        ports: () => createFirebasePorts(getContext, owner),
+        files: createEverydayPhotoServices(),
+        assertCurrent: () => {
+          getContext();
+        },
+        now: () => options.getClock().nowMs,
+        newId: () =>
+          'wallet-' +
+          Date.now().toString(36) +
+          '-' +
+          Math.random().toString(36).slice(2, 12) +
+          '-' +
+          Math.random().toString(36).slice(2, 12),
+      });
+      cloudStores.set(token, store);
+    }
+    return store;
+  };
+  const storageForFamily = (target: DataFamily): LedgerStorage =>
+    isCloudFamily(target) ? everydayStorageForFamily(target) : localStorageForFamily(target);
+  const storageKeyForFamily = (target: DataFamily) =>
+    isCloudFamily(target)
+      ? (
+          require('../cloud/everydayFormat') as typeof import('../cloud/everydayFormat')
+        ).everydayKeys(target).cache
+      : familyStorageKeys(target).key;
   const profileForFamily = (target: DataFamily) => {
     const token = encodeDataFamily(target);
     let store = profiles.get(token);
@@ -94,6 +157,7 @@ export function createAccountAppRuntime(options: {
     auth: options.auth,
     financial: bridge.financial,
     storageForFamily,
+    storageKeyForFamily,
     profileForFamily,
     createGuestLedger: options.createGuestLedger,
     identityContext,
@@ -129,11 +193,70 @@ export function createAccountAppRuntime(options: {
         ? () => options.auth!.createResetSession!()
         : undefined,
   });
+  const getAuthenticatedServiceBinding = () => {
+    const view = coordinator.getSnapshot();
+    if (
+      !options.cloudConfiguration ||
+      !options.auth?.getSdkContext ||
+      view.phase !== 'ready' ||
+      view.persistence !== 'confirmed' ||
+      !view.user ||
+      !view.activeOwnerToken
+    )
+      return null;
+    try {
+      const captured = options.auth.getSdkContext();
+      const user = captured.auth.currentUser;
+      const viewToken = presentation.getSnapshot().viewToken;
+      const ownerToken = view.activeOwnerToken;
+      if (!user || user.uid !== view.user.uid || captured.uid !== user.uid) return null;
+      const isCurrent = () => {
+        try {
+          const current = coordinator.getSnapshot();
+          const sdk = options.auth!.getSdkContext!();
+          return (
+            current.phase === 'ready' &&
+            current.persistence === 'confirmed' &&
+            current.activeOwnerToken === ownerToken &&
+            current.user?.uid === captured.uid &&
+            presentation.getSnapshot().viewToken === viewToken &&
+            sdk.app === captured.app &&
+            sdk.auth === captured.auth &&
+            sdk.auth.currentUser === user &&
+            sdk.uid === captured.uid &&
+            sdk.configuration.firebase.projectId === captured.configuration.firebase.projectId
+          );
+        } catch {
+          return false;
+        }
+      };
+      return Object.freeze({
+        projectId: captured.configuration.firebase.projectId,
+        uid: captured.uid,
+        ownerToken,
+        viewToken,
+        isCurrent,
+        async getIdToken(forceRefresh = false) {
+          if (!isCurrent()) throw new Error('The signed-in account changed. Reopen this tool.');
+          const token = await user.getIdToken(forceRefresh);
+          if (!isCurrent()) throw new Error('The signed-in account changed. Reopen this tool.');
+          return token;
+        },
+      });
+    } catch {
+      return null;
+    }
+  };
   return {
     bridge,
     coordinator,
     presentation,
+    deviceStorage: checkedStorage,
+    getAuthenticatedServiceBinding,
     storageForFamily,
+    localStorageForFamily,
+    everydayStorageForFamily,
+    retryAccount: retry,
     cloud: {
       configuration: options.cloudConfiguration ?? null,
       error: options.cloudConfigurationError ?? '',

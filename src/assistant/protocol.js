@@ -1,3 +1,4 @@
+const { validateHistory } = require('./historyContext');
 const { validDate, CURRENCIES } = require('../core/model');
 const {
   MODEL_ID,
@@ -39,23 +40,34 @@ const OPTIONAL_IDS = [
   'budget3',
   'healthScope',
   'health',
+  'comparisonScope',
+  'comparisonIncome',
+  'comparisonExpense',
+  'comparisonDebt',
+  'comparisonNet',
+  'categoryTrend1',
+  'categoryTrend2',
+  'categoryTrend3',
 ];
 const MESSAGES = Object.freeze({
-  UNAUTHORIZED: 'The local assistant connection expired. Reopen the companion connection.',
+  UNAUTHORIZED:
+    'The assistant connection could not be authorized. Recheck Connections before asking again.',
   BAD_REQUEST: 'The selected financial context could not be sent.',
-  TOO_LARGE: 'Select fewer financial details or ask a shorter question.',
-  CONTEXT_TOO_LARGE: 'The selected facts exceed the assistant context limit. Select fewer details.',
+  TOO_LARGE:
+    'The question, summaries and conversation are too long. Start a new conversation, select fewer summaries or ask a shorter question.',
+  CONTEXT_TOO_LARGE:
+    "The question, summaries and conversation exceed this model's context limit. Start a new conversation, select fewer summaries or ask a shorter question.",
   BUSY: 'The selected model is still finishing another request. Wait, then try again.',
-  MODEL_UNAVAILABLE: 'The selected model is unavailable. Check or restart the Windows companion.',
-  TIMEOUT: 'The explanation took too long. Review the companion before retrying deliberately.',
+  MODEL_UNAVAILABLE:
+    'The selected assistant is unavailable. Recheck its service in Wallet > Connections.',
+  TIMEOUT: 'The assistant did not finish in time. Check the connection before retrying.',
   CANCELLED: 'The explanation was cancelled.',
   INVALID_MODEL_RESPONSE:
     'The model response could not be verified. The calculated facts remain available.',
-  NETWORK: 'The local companion could not be reached. The calculated facts remain available.',
+  NETWORK: 'The assistant service could not be reached. The calculated summaries remain available.',
   FAILED: 'The explanation could not be completed.',
-  PROVIDER_MISMATCH: 'The configured assistant changed. Re-pair the companion before asking again.',
-  PROVIDER_AUTH:
-    'The selected provider rejected its server credential or access. Check the private companion configuration.',
+  PROVIDER_MISMATCH: 'The configured assistant changed. Recheck Connections before asking again.',
+  PROVIDER_AUTH: 'The assistant provider rejected its configured access. Check the service setup.',
   RATE_LIMITED:
     'The selected provider cannot accept another request. Check its limits before retrying deliberately.',
   REFUSED: 'The selected provider declined this question. The calculated facts remain available.',
@@ -82,10 +94,12 @@ function validateWire(value) {
       'currency',
       'facts',
       'question',
+      ...(Object.hasOwn(value || {}, 'history') ? ['history'] : []),
     ]) ||
     value.version !== 1 ||
     !requestId(value.requestId) ||
-    value.templateVersion !== 'recorded-facts-v1' ||
+    !['recorded-facts-v1', 'recorded-facts-v2'].includes(value.templateVersion) ||
+    (Object.hasOwn(value, 'history') && value.templateVersion !== 'recorded-facts-v2') ||
     !keys(value.period, ['startDate', 'endDate', 'inclusive']) ||
     value.period.inclusive !== true ||
     !validDate(value.period.startDate) ||
@@ -97,9 +111,15 @@ function validateWire(value) {
     value.question.length > MAX_QUESTION_LENGTH ||
     !Array.isArray(value.facts) ||
     value.facts.length < BASE_IDS.length ||
-    value.facts.length > 32
+    value.facts.length > 48
   )
     throw new AssistantError('BAD_REQUEST');
+  let history;
+  try {
+    history = validateHistory(Object.hasOwn(value, 'history') ? value.history : []);
+  } catch {
+    throw new AssistantError('BAD_REQUEST');
+  }
   const seen = new Set();
   for (const fact of value.facts) {
     if (
@@ -125,6 +145,7 @@ function validateWire(value) {
     currency: value.currency,
     facts: value.facts.map((fact) => ({ ...fact })),
     question: value.question.trim(),
+    ...(history.length ? { history } : {}),
   };
 }
 function payloadFromWire(value) {
@@ -139,7 +160,13 @@ function payloadFromWire(value) {
         facts: wire.facts,
       }),
     },
-    { role: 'user', content: encodeData({ question: wire.question }) },
+    {
+      role: 'user',
+      content: encodeData({
+        question: wire.question,
+        ...(wire.history?.length ? { history: wire.history } : {}),
+      }),
+    },
   ];
   if (messages.reduce((sum, row) => sum + row.content.length, 0) > MAX_PROMPT_CHARACTERS)
     throw new AssistantError('CONTEXT_TOO_LARGE');
@@ -148,7 +175,7 @@ function payloadFromWire(value) {
     messages,
     temperature: 0,
     seed: 7,
-    max_tokens: 160,
+    max_tokens: 512,
     stream: false,
   };
 }
@@ -171,16 +198,26 @@ function wireFromPayload(payload, id) {
   } catch {
     throw new AssistantError('BAD_REQUEST');
   }
-  if (!keys(facts, ['selectedPeriod', 'currency', 'facts']) || !keys(question, ['question']))
+  if (
+    !keys(facts, ['selectedPeriod', 'currency', 'facts']) ||
+    !keys(question, ['question', ...(Object.hasOwn(question || {}, 'history') ? ['history'] : [])])
+  )
     throw new AssistantError('BAD_REQUEST');
   return validateWire({
     version: 1,
     requestId: id,
-    templateVersion: 'recorded-facts-v1',
+    templateVersion:
+      question.history?.length ||
+      facts.facts.some(
+        (fact) => fact.id.startsWith('comparison') || fact.id.startsWith('categoryTrend'),
+      )
+        ? 'recorded-facts-v2'
+        : 'recorded-facts-v1',
     period: facts.selectedPeriod,
     currency: facts.currency,
     facts: facts.facts,
     question: question.question,
+    ...(Object.hasOwn(question, 'history') ? { history: question.history } : {}),
   });
 }
 // llama.cpp b11393 supports schema-constrained JSON via response_format.

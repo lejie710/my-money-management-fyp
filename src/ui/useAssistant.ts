@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   buildAssistantContext,
   buildAssistantRequest,
@@ -6,6 +6,7 @@ import {
   type AssistantContext,
 } from '../assistant/grounding';
 import { createAssistantSession, type AssistantResult } from '../assistant/sessionGate';
+import type { SavedConversation } from '../assistant/conversations';
 import { MESSAGES } from '../assistant/protocol';
 import type { AssistantGroup, AssistantPanelProps, AssistantTurn } from './assistantUiTypes';
 
@@ -15,6 +16,7 @@ const noGroups = () => ({
   budgets: false,
   goal: false,
   health: false,
+  comparisons: false,
 });
 type SelectionState = {
   scope: object;
@@ -65,6 +67,8 @@ export function useAssistant({
   transport,
   provider,
   isCurrent,
+  initialInclude,
+  conversationStore,
 }: AssistantPanelProps) {
   const scope = useMemo(
     () => ({}),
@@ -75,7 +79,7 @@ export function useAssistant({
     ...initialRange,
     startDraft: initialRange.startDate,
     endDraft: initialRange.endDate,
-    include: noGroups(),
+    include: { ...noGroups(), ...initialInclude },
     error: '',
   });
   const [selection, setSelection] = useState<SelectionState>(initial);
@@ -111,10 +115,212 @@ export function useAssistant({
   const latestScope = useRef(scope);
   latestScope.current = scope;
   const binding = useRef<Binding | null>(null);
+  const closedKey = useRef<object | null>(null);
   const [storedView, setView] = useState<View>(() => emptyView(key));
   const view = storedView.key === key ? storedView : emptyView(key);
   const viewRef = useRef(view);
   viewRef.current = view;
+  const [history, setHistory] = useState<{
+    store: typeof conversationStore;
+    records: SavedConversation[];
+    loaded: boolean;
+    error: string;
+  }>(() => ({ store: conversationStore, records: [], loaded: !conversationStore, error: '' }));
+  const currentHistory =
+    history.store === conversationStore
+      ? history
+      : { store: conversationStore, records: [], loaded: !conversationStore, error: '' };
+  const [archive, setArchive] = useState<{
+    store: typeof conversationStore;
+    record: SavedConversation;
+  } | null>(null);
+  const archivedConversation =
+    archive?.store === conversationStore ? (archive?.record ?? null) : null;
+  const latestStore = useRef(conversationStore);
+  latestStore.current = conversationStore;
+  const conversationRef = useRef<{
+    key: object;
+    id: string;
+    createdAt: number;
+    expectedUpdatedAt: number | null;
+  } | null>(null);
+  const historySequence = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const panelCurrent = () =>
+    mounted.current &&
+    latestKey.current === key &&
+    latestStore.current === conversationStore &&
+    closedKey.current !== key &&
+    (isCurrent?.() ?? true);
+  const refreshHistory = async () => {
+    const store = conversationStore;
+    if (!store || !panelCurrent()) return;
+    const sequence = ++historySequence.current;
+    try {
+      const records = await store.load();
+      const pending = conversationRef.current;
+      const saved = pending && records.find((row) => row.id === pending.id);
+      const visible = viewRef.current.turns.map((turn) => ({
+        question: turn.question,
+        answer: turn.answer,
+        factIds: turn.facts.map((fact) => fact.id),
+      }));
+      if (
+        saved &&
+        JSON.stringify(saved.turns) === JSON.stringify(visible) &&
+        pending === conversationRef.current &&
+        latestStore.current === store
+      )
+        pending.expectedUpdatedAt = saved.updatedAt;
+      if (mounted.current && latestStore.current === store && sequence === historySequence.current)
+        setHistory({ store, records, loaded: true, error: '' });
+    } catch {
+      if (mounted.current && latestStore.current === store && sequence === historySequence.current)
+        setHistory({
+          store,
+          records: [],
+          loaded: false,
+          error:
+            'Saved conversations could not be opened. Existing history is retained. Retry before saving new conversations.',
+        });
+    }
+  };
+  useEffect(() => {
+    setArchive(null);
+    setHistory({ store: conversationStore, records: [], loaded: !conversationStore, error: '' });
+    void refreshHistory();
+  }, [conversationStore]);
+  const persistTurns = async (turns: readonly AssistantTurn[], context: AssistantContext) => {
+    const store = conversationStore;
+    if (!store || !turns.length || !current(binding.current) || !mounted.current) return;
+    if (!currentHistory.loaded || latestStore.current !== store) {
+      setHistory((old) => ({
+        ...old,
+        error:
+          'This answer is visible but not saved. Reopen history before saving the conversation.',
+      }));
+      return;
+    }
+    const now = Date.now();
+    if (conversationRef.current?.key !== key)
+      conversationRef.current = {
+        key,
+        id: 'chat-' + now.toString(36) + '-' + Math.random().toString(36).slice(2, 10),
+        createdAt: now,
+        expectedUpdatedAt: null,
+      };
+    const id = conversationRef.current;
+    const record: SavedConversation = {
+      id: id.id,
+      createdAt: id.createdAt,
+      updatedAt: Math.max(now, id.createdAt, (id.expectedUpdatedAt ?? -1) + 1),
+      walletId: ledger.wallet.incarnationId,
+      walletName: ledger.wallet.name,
+      provider: {
+        engine: provider?.engine ?? 'lemonade',
+        processing: provider?.processing ?? 'local',
+        model: provider?.model ?? 'Qwen3-4B-Instruct-2507-GGUF',
+      },
+      context,
+      turns: turns.slice(-12).map((turn) => ({
+        question: turn.question,
+        answer: turn.answer,
+        factIds: turn.facts.map((fact) => fact.id),
+      })),
+    };
+    const sequence = ++historySequence.current;
+    try {
+      const records = await store.save(record, id.expectedUpdatedAt);
+      if (conversationRef.current === id) id.expectedUpdatedAt = record.updatedAt;
+      if (mounted.current && latestStore.current === store && sequence === historySequence.current)
+        setHistory({ store, records, loaded: true, error: '' });
+    } catch {
+      if (mounted.current && latestStore.current === store && sequence === historySequence.current)
+        setHistory((old) => ({
+          ...old,
+          error:
+            'This conversation was not confirmed saved. Retry saving, or delete an older conversation if history is full.',
+        }));
+    }
+  };
+  const currentContextMatchesArchive =
+    !!archivedConversation &&
+    !!prepared.context &&
+    archivedConversation.walletId === ledger.wallet.incarnationId &&
+    JSON.stringify(archivedConversation.context) === JSON.stringify(prepared.context) &&
+    archivedConversation.provider.engine === (provider?.engine ?? 'lemonade') &&
+    archivedConversation.provider.model === (provider?.model ?? 'Qwen3-4B-Instruct-2507-GGUF');
+  const continueSaved = () => {
+    if (
+      !panelCurrent() ||
+      !currentContextMatchesArchive ||
+      !archivedConversation ||
+      !prepared.context
+    )
+      return false;
+    const entry = binding.current;
+    if (current(entry)) entry.gate.cancel();
+    conversationRef.current = {
+      key,
+      id: archivedConversation.id,
+      createdAt: archivedConversation.createdAt,
+      expectedUpdatedAt: archivedConversation.updatedAt,
+    };
+    const context = prepared.context;
+    setView({
+      ...emptyView(key),
+      turns: archivedConversation.turns.map((turn) => ({
+        question: turn.question,
+        answer: turn.answer,
+        context,
+        facts: context.facts.filter((fact) => turn.factIds.includes(fact.id)),
+      })),
+    });
+    setArchive(null);
+    return true;
+  };
+  const deleteSaved = async (id: string) => {
+    const store = conversationStore;
+    if (
+      !store ||
+      !mounted.current ||
+      closedKey.current === key ||
+      latestKey.current !== key ||
+      !(isCurrent?.() ?? true)
+    )
+      return;
+    const sequence = ++historySequence.current;
+    try {
+      const records = await store.remove(id);
+      if (
+        mounted.current &&
+        latestStore.current === store &&
+        sequence === historySequence.current
+      ) {
+        setHistory({ store, records, loaded: true, error: '' });
+        if (archive?.record.id === id) setArchive(null);
+        if (conversationRef.current?.id === id) {
+          conversationRef.current = null;
+          const entry = binding.current;
+          if (current(entry)) entry.gate.cancel();
+          setView(emptyView(key));
+        }
+      }
+    } catch {
+      if (mounted.current && latestStore.current === store && sequence === historySequence.current)
+        setHistory((old) => ({
+          ...old,
+          error:
+            'Deleting the conversation could not be confirmed. Reopen history before retrying.',
+        }));
+    }
+  };
 
   useLayoutEffect(() => {
     if (selection.scope !== scope) setSelection(initial());
@@ -155,6 +361,7 @@ export function useAssistant({
   const current = (entry: Binding | null): entry is Binding =>
     !!entry &&
     entry.alive &&
+    closedKey.current !== key &&
     binding.current === entry &&
     entry.key === key &&
     latestKey.current === key &&
@@ -219,20 +426,29 @@ export function useAssistant({
   const perform = async (question: string) => {
     const entry = binding.current,
       context = prepared.context;
-    if (!current(entry) || !context) return false;
+    if (
+      !current(entry) ||
+      !context ||
+      archivedConversation ||
+      (conversationStore && !currentHistory.loaded)
+    )
+      return false;
     if (entry.gate.isBusy()) return false;
     if (!question.trim() || question.trim().length > MAX_QUESTION_LENGTH) {
       updateView((old) => ({ ...old, message: 'Enter a question of 1 to 500 characters.' }));
       return false;
     }
+    const previousTurns = viewRef.current.turns
+      .slice(-3)
+      .map(({ question, answer }) => ({ question, answer }));
     try {
-      buildAssistantRequest(context, question);
+      buildAssistantRequest(context, question, previousTurns);
     } catch {
       updateView((old) => ({ ...old, message: MESSAGES.TOO_LARGE }));
       return false;
     }
     updateView((old) => ({ ...old, busy: true, message: '', retryQuestion: question.trim() }));
-    const result = await entry.gate.ask(question);
+    const result = await entry.gate.ask(question, previousTurns);
     if (!current(entry) || !entry.gate.isResultCurrent(result)) return false;
     if (result.status === 'success') {
       const turn: AssistantTurn = {
@@ -241,13 +457,15 @@ export function useAssistant({
         context,
         facts: context.facts.filter((fact) => result.response.factIds.includes(fact.id)),
       };
+      const turns = [...viewRef.current.turns, turn].slice(-12);
       updateView((old) => ({
         ...old,
         busy: false,
         retryQuestion: null,
         message: '',
-        turns: [...old.turns, turn].slice(-3),
+        turns,
       }));
+      await persistTurns(turns, context);
       return true;
     }
     updateView((old) => ({ ...old, busy: false, message: resultMessage(result) }));
@@ -270,16 +488,45 @@ export function useAssistant({
     if (latestKey.current !== key || !(isCurrent?.() ?? true)) return;
     const entry = binding.current;
     if (current(entry)) entry.gate.cancel();
+    conversationRef.current = null;
+    setArchive(null);
     setView(emptyView(key));
   };
   const close = () => {
+    if (latestKey.current !== key) return;
     const entry = binding.current;
-    if (!current(entry)) return;
+    const live = current(entry);
+    closedKey.current = key;
+    if (!live || !entry) return;
     entry.alive = false;
     entry.gate.close();
   };
   return {
     ...view,
+    history: currentHistory.records,
+    historyLoaded: currentHistory.loaded,
+    historyError: currentHistory.error,
+    historyEnabled: !!conversationStore,
+    archivedConversation,
+    canContinueSaved: currentContextMatchesArchive && !!transport,
+    refreshHistory,
+    saveConversation: () =>
+      prepared.context ? persistTurns(viewRef.current.turns, prepared.context) : Promise.resolve(),
+    openSaved: (id: string) => {
+      if (!panelCurrent()) return;
+      const record = currentHistory.records.find((row) => row.id === id);
+      if (record) {
+        const entry = binding.current;
+        if (current(entry)) entry.gate.cancel();
+        updateView((old) => ({ ...old, busy: false }));
+        setArchive({ store: conversationStore, record });
+      }
+    },
+    closeSaved: () => {
+      if (panelCurrent()) setArchive(null);
+    },
+    continueSaved,
+    deleteSaved,
     context: prepared.context,
     contextError: prepared.error,
     selectionError: effective.error,
@@ -289,7 +536,13 @@ export function useAssistant({
     hasUnappliedDates:
       effective.startDraft !== effective.startDate || effective.endDraft !== effective.endDate,
     configured: !!transport,
-    canAsk: !!transport && prepared.requestReady && !!actorKey && !!sessionKey,
+    canAsk:
+      !!transport &&
+      prepared.requestReady &&
+      !!actorKey &&
+      !!sessionKey &&
+      !archivedConversation &&
+      (!conversationStore || currentHistory.loaded),
     setQuestion,
     setStartDraft: (value: string) => changeDate('startDraft', value),
     setEndDraft: (value: string) => changeDate('endDraft', value),

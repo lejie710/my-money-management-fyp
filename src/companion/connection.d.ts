@@ -1,4 +1,4 @@
-import type { CompanionProviders } from './providerContract';
+import type { LocalCompanionProviders } from './providerContract';
 type CommonConnection = Readonly<{
   runId: string;
   url: 'http://127.0.0.1:8787/v1/recognize';
@@ -6,7 +6,7 @@ type CommonConnection = Readonly<{
 }>;
 export type CompanionConnection =
   | (CommonConnection & Readonly<{ version: 1; providers?: never }>)
-  | (CommonConnection & Readonly<{ version: 2; providers: CompanionProviders }>);
+  | (CommonConnection & Readonly<{ version: 2; providers: LocalCompanionProviders }>);
 export const MAX_COMPANION_CONNECTION_BYTES: 4096;
 export class CompanionConnectionError extends Error {
   readonly code: 'INVALID_CONNECTION' | 'CONNECTION_UNAVAILABLE';

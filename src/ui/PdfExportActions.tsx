@@ -2,9 +2,10 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { Action, FormError } from './components';
 import type { usePdfExport } from './usePdfExport';
-import { ui } from './theme';
+import { useTheme } from './theme';
 
 export function PdfExportActions({ state }: { state: ReturnType<typeof usePdfExport> }) {
+  const { colors, ui } = useTheme();
   return (
     <View style={ui.divider}>
       <Text style={ui.heading} accessibilityRole="header">

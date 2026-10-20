@@ -9,7 +9,7 @@ import {
   TransactionType,
 } from '../core/model';
 import { Action, Choice, Field, FormError, Screen, Sheet } from './components';
-import { colors, ui } from './theme';
+import { useThemedStyles, type ThemeColors } from './theme';
 import { newId, typeLabels, types } from './TransactionEditor';
 import { SaveLedger } from './useLedger';
 
@@ -29,6 +29,7 @@ export function CategoriesScreen({
   clearSaveError,
   onBack,
 }: Props & { onBack: () => void }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const [type, setType] = useState<TransactionType>('expense');
   const [editor, setEditor] = useState<{ category?: Category } | null>(null);
   const categories = ledger.categories.filter((category) => category.type === type);
@@ -154,6 +155,7 @@ function CategoryEditor({
   onClose,
   clearSaveError,
 }: Props & { category?: Category; initialType: TransactionType; onClose: () => void }) {
+  const { colors, ui, styles } = useThemedStyles(createStyles);
   const [name, setName] = useState(category?.name ?? '');
   const [type, setType] = useState(category?.type ?? initialType);
   const [error, setError] = useState('');
@@ -283,7 +285,7 @@ function CategoryEditor({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   list: {
     borderRadius: 18,
     backgroundColor: colors.surface,

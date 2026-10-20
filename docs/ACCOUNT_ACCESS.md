@@ -1,34 +1,49 @@
-# Guest and configured account access
+# Guest and Firebase account wallets
 
-The app has one guest wallet and a separate device-local wallet for each confirmed account. Sign-in selects that wallet; it never automatically uploads financial records or copies the guest wallet. Accounts can use either the original Auth-only local demonstration or an explicitly configured Firebase project for manual backup and restore. No original hosted project or credential is included.
+A fresh installation opens an empty device-local guest wallet. With Firebase configured, sign-in opens that account's everyday cloud wallet: financial saves use Firestore, and attached photos use Firebase Storage. Guest records and earlier account-local wallets are not uploaded merely by signing in. The original Auth-only local demonstration remains an alternative with local financial records.
 
-The [Firebase backup guide](../tools/firebase-backup/README.md) covers the new three-service emulator and hosted setup. The Auth-only helper below remains available independently, with its existing identities and persistence keys preserved.
+Use the [Firebase setup guide](../tools/firebase-backup/README.md) for project configuration, rules, the three-service emulator and everyday-cloud recovery. The [backend guide](../tools/backend/README.md) separately configures the original OpenAI, Vision and Prophet services using the same Firebase account identity.
 
 ## What is kept where
 
-| Information                                        | Storage and purpose                                                                                                                                                           |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guest transactions, budgets, goal and achievements | The existing device-local guest store, with earlier migration bytes preserved                                                                                                 |
-| Each account's financial records                   | A separate device-local store identified by scope and account; configured Firebase additionally includes project ID so equal UIDs in different projects do not share a wallet |
-| Transaction photos and local reminders             | Bound to the same account family and wallet incarnation; earlier owners cannot publish into a newly selected wallet                                                           |
-| Email, password credentials and display name       | The selected Firebase Auth service; the older local Auth-only helper can export/import its synthetic accounts                                                                 |
-| Saved SDK session                                  | Device AsyncStorage under an isolated scope/project namespace; checked against the SDK's actual identity before opening financial content                                     |
-| Optional gender and birthday                       | That account's local profile on the device; initially unset, never inferred, and excluded from wallet backups                                                                 |
-| Explicit cloud backup                              | Supported ledger snapshot and optional photo blobs in the configured project, after preview and confirmation; no background synchronization                                   |
+| Information                                    | Location and purpose                                                                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Guest financial records and attachments        | Device-local guest store; preserved when entering or leaving an account                                                   |
+| Configured account ledger                      | Firestore, with server revisions and save receipts; one wallet for that project/UID                                       |
+| Account attachment bytes                       | Owner-scoped Firebase Storage after explicit transaction/copy/restore confirmation, with checked local copies for display |
+| Last confirmed account records                 | Device cache for offline viewing; never a substitute for server acknowledgement of an attempted save                      |
+| Unfinished transaction, budget and goal fields | Local drafts scoped to account family, wallet incarnation and form target                                                 |
+| Interrupted submitted cloud operations         | Separate local recovery journal retaining the same operation identity until its server outcome is resolved                |
+| Assistant conversation history                 | Local per-account/guest storage; not included in Firebase wallet synchronization or backups                               |
+| Auth credentials and identity                  | The selected Firebase Auth service; its SDK session is stored in a scoped device namespace                                |
+| Optional profile extras and local reminders    | Device-local account/owner data, excluded from wallet recovery snapshots                                                  |
+| Manual cloud backup                            | Separate explicit recovery snapshot, with photos included only when selected                                              |
 
-The app does not add its own encryption layer to AsyncStorage or its local financial files. Android backup is disabled in the native configuration. The Auth emulator and its exports are development tools; use synthetic identities and passwords that are not reused elsewhere. Hosted Auth and explicit backup/restore have their own configuration and local emulator checks. Live deployment and email delivery remain separate verification; automatic cross-device synchronization is not implemented.
+Equal UIDs in different Firebase projects do not share local account data. The app does not add its own encryption layer to AsyncStorage or local financial files; native Android backup is disabled. Uninstalling or clearing app storage can remove local drafts, history and cached data, while confirmed remote financial records remain in the configured project.
 
-## Use the account screen
+## Sign in and change accounts
 
-Open Wallet > Tools > Connections > Account access. When already signed in, that row is labelled Manage account; configured accounts also have a Wallet account shortcut. With account mode disabled, the account screen identifies the guest wallet and explains that an account service is not configured. Guest financial features remain available.
+Open Wallet > Tools > Connections > Account access, or Manage account when signed in. Register with an email, password and display name, or sign in to the selected Firebase project. A new account starts with an empty cloud wallet; an existing account retrieves its current server records. When account configuration is disabled, the account screen explains guest mode without presenting unusable sign-in controls.
 
-With either configured account mode enabled, register using an email, password and display name, or sign in to an account in that selected service. A newly encountered account starts with its own empty wallet. If account creation succeeds but its display name cannot be confirmed, the account remains available and Profile offers an explicit name retry. No demographic field is filled automatically.
+Sign out to reopen the separate guest wallet. Signing out does not delete the cloud account wallet or the earlier local account store. Signing back into the same project/UID reopens that account. Deleting and recreating an account can change its UID even if the email is reused, so it does not automatically recover the old wallet.
 
-Sign out to reopen the guest wallet. Signing out does not delete an account's wallet. Signing back into the same UID and project selects its previous records on this device. Removing and recreating an emulator account normally gives it a new UID, so reusing the same email does not identify the old wallet. Preserve the emulator export when you need the original account identity.
+Before an identity change, the app retires feature sessions, protects owned photo operations and pauses/cancels the previous owner's local reminders. An active financial editor or unconfirmed financial write can require attention before switching. Financial content remains gated until identity and the intended wallet are confirmed; another account's balance is not used as a loading placeholder.
 
-Before an identity change, the app blocks new financial writes, waits for owned photo operations and cancels or pauses the previous owner's reminders. It refuses the change while an editor or unconfirmed financial write needs attention. Exports close, and financial content stays hidden until the SDK identity, saved session and exact target wallet are confirmed. A previous account's balance is never used as a loading placeholder for another account.
+If account recovery closes an unfinished financial form, confirmed local drafts remain separate from saved records and require Resume/Discard on reopening. Temporary photo selections may need to be chosen again. An uncertain cloud Save is a different state: reconcile the operation rather than discarding it as if no request was submitted. Recovery labels may require closing an active editor before checking the saved session.
 
-If a recheck hides an unfinished editor, an explicit Discard transaction draft and recheck action remains reachable outside the financial screen. This discards unsaved form edits only. A failed or uncertain saved operation instead requires Check saved session; the app reads the actual stored result and does not automatically repeat registration, login or financial writes. A restart-required state means that the SDK's saved identity could not be safely reconciled in the current process. Restarting is a recovery step, not permission to clear app data.
+## Connected saving and offline viewing
+
+Everyday account saves require a Firebase server acknowledgement. A successful Save on one device becomes available when another device opens or explicitly refreshes the wallet. The app does not provide automatic offline edit merging or promise live push updates between every open screen.
+
+Offline access uses the last server-confirmed records. Transaction, budget and goal text can be retained locally as unfinished drafts, but those drafts do not change confirmed cloud totals. On reopening, compare the captured financial base with the current wallet before resuming. A newer wallet version cannot be silently replaced by a stale draft.
+
+If a save was dispatched but its response was lost, Cloud wallet retains the operation for explicit reconciliation/retry. A server receipt confirms whether that exact operation committed. Another device's intervening change produces a conflict with the attempted draft preserved. Malformed recovery data is retained and blocks replacement. [Firebase setup and recovery](../tools/firebase-backup/README.md) documents the exact states and limits.
+
+## Copy an existing wallet or restore a backup
+
+Open Wallet > Tools > Connections > Cloud wallet to preview an existing guest or earlier account-local wallet. Confirming the copy requires the same unchanged empty cloud target and unchanged source. The reviewed records and attachments are saved to the account's Firebase project; the original device source stays intact. There is no silent migration on sign-in.
+
+Cloud backup is a separate recovery feature. Its photo inclusion remains explicit. Confirming a restore into a live account wallet writes the restored records and selected attachments to the unchanged empty Firebase target so other devices can retrieve them. A populated target is not merged or overwritten. Restore imports no Auth session, profile extras, assistant history, export artifact or notification schedule. An Auth-emulator export alone is not a wallet/photo backup.
 
 ## Remove an unavailable saved sign-in
 
@@ -39,12 +54,6 @@ Account offers **Remove unavailable saved sign-in** only for that specific known
 After confirmed removal, close and restart the app. Financial access stays gated in the current process so old SDK callbacks cannot recreate the retired session. The fresh process must confirm the guest identity and its existing saved wallet normally before sign-in or registration becomes available. A newly created account with the same email can have a different UID and does not automatically receive the old account wallet.
 
 Unreadable storage, unresolved financial writes, a changed session record or an uncertain removal outcome do not authorize this recovery shortcut. The app keeps access blocked and reports the unresolved outcome; it never retries deletion or rewrites a replacement session automatically. Ordinary sign-out remains the separate action for a healthy confirmed account.
-
-## Explicit guest copy and cloud backup
-
-Configured Firebase accounts can open **Wallet > Tools > Connections > Cloud Backup**. Previewing a guest copy shows its records before confirmation; copying requires an unchanged empty account wallet and leaves the guest source intact. It performs no upload. Previewing and confirming cloud backup is a separate action, with photos excluded until deliberately selected.
-
-Cloud restore also requires an unchanged empty account wallet. It restores supported financial fields and optional photos under new wallet ownership; it imports no authentication session, profile extras, exports or notification schedules. A populated wallet is never merged or overwritten by these operations. Interrupted backups retain one stable operation ID for explicit reconciliation. See the [Firebase guide](../tools/firebase-backup/README.md) for exact limits, pending-operation recovery, rules and reproduction commands.
 
 ## Configured Firebase password reset
 
@@ -86,20 +95,18 @@ npm.cmd run android -- --project-app
 
 Changing this flag requires restarting the selected development server. The runtime connects Auth to `http://127.0.0.1:9099` synchronously before its first awaited initialization step. For an Android emulator, configure `adb -s <emulator-serial> reverse tcp:9099 tcp:9099` for that verified target; the ordinary app launcher forwards Metro's 8081 port, not Auth's 9099 port. The helper binds its service to loopback and never logs into a cloud Firebase account.
 
-The public helper's real 12-check lifecycle gate passed separately from the 18 recorded Android account checks. It verified empty and populated export/import, two synthetic accounts retaining their UIDs/profiles/password access, and three owned graceful shutdowns with final listeners clear. [Verification](../VERIFICATION.md) records the exact fixture scope and platform limits. The app's working guest mode does not by itself establish that optional account mode or the emulator is running.
+The [verification record](../VERIFICATION.md) separates the Auth helper's export/import lifecycle checks from Android account workflows. Working guest mode does not establish that an optional Auth service is running. Preserve exported emulator identities when continuing a previous synthetic account.
 
 ## Worked example
 
-Suppose the guest wallet has RM40.00, account A records RM12.50 and account B records RM80.00. Moving among Guest, A and B should show those three separate balances, including after an app restart. Editing A must not change either other wallet. A rejected sign-in must return only to an identity whose SDK persistence and financial store were confirmed; it must not show a blank replacement wallet.
+The guest wallet holds RM40.00. Account A confirms RM12.50 of expenses in Firebase; account B has separate records. Moving among those identities must preserve their different wallets. Editing A cannot change guest or B data, and an account transition retires previews or requests from the previous session.
 
-```mermaid
-flowchart LR
-    G[Confirmed guest identity] --> GW[Guest wallet]
-    A[Confirmed account A UID] --> AW[Account A wallet]
-    B[Confirmed account B UID] --> BW[Account B wallet]
-    U[Unconfirmed identity or saved write] --> R[Recovery screen]
-```
+If A loses connectivity, its last confirmed wallet can remain visible with a read-only/recovery indication. Typing a new budget creates a local draft, not a cloud budget. The user must resume/review and save when connected. Returning to Guest still shows the original guest records unless a separate guest action changed them.
 
-Exercise: the guest has a saved budget and photo. Register account A, then sign out. Where should those items appear?
+Exercise: the guest has a budget and receipt photo. Register A, then sign out without confirming a copy. Where should those items appear?
 
-Answer: the new account begins with its own empty wallet, and the guest budget/photo appear again only when the confirmed guest wallet is reopened. There is no automatic transfer. In configured Firebase mode, the user can later preview and confirm a separate guest copy into the still-empty account, optionally including the photo. The original owned photo remains protected by retained-reference checks; account changes do not delete it merely because it is not visible in the newly selected wallet.
+Answer: only in the guest wallet. A's new account wallet begins empty. Later, an explicitly confirmed copy into an empty A wallet may include those records/photos, while keeping the guest originals.
+
+## Verification boundaries
+
+See [Verification](../VERIFICATION.md) for completed source, emulator and native checks. A locally tested Auth/Firestore/Storage flow does not establish hosted project deployment, production rules setup, email delivery or iOS behavior. No original hosted account is needed for the repository's synthetic examples.

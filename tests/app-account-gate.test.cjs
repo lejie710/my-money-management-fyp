@@ -22,7 +22,7 @@ async function appFixture() {
     react: host.react,
     'react-native': native,
     './components': { Action: 'Action', FormError: 'FormError', Sheet: 'Sheet' },
-    './theme': { colors: {}, ui: {} },
+    './theme': require('./helpers/theme-stub.cjs').themeStub,
   });
   const state = f.runtime.presentation.getSnapshot(),
     account = {
@@ -111,9 +111,12 @@ async function appFixture() {
       WalletAccountEntry: 'WalletAccountEntry',
     },
     './src/ui/components': { Action: 'Action', FormError: 'FormError', Sheet: 'Sheet' },
-    './src/ui/theme': { colors: {}, ui: {} },
+    './src/ui/theme': require('./helpers/theme-stub.cjs').themeStub,
+    './src/ui/ThemeProvider': { ThemeProvider: 'ThemeProvider' },
     './src/ui/AppIcon': { AppIcon: 'AppIcon' },
     './src/ui/useCloudBackup': { useCloudBackup: () => ({ controller: Object.freeze({}) }) },
+    './src/ui/CloudWalletScreen': { CloudWalletScreen: 'CloudWalletScreen' },
+    './src/drafts/transactionDrafts': require('../src/drafts/transactionDrafts'),
     './src/ui/CloudBackupScreen': { CloudBackupScreen: 'CloudBackupScreen' },
     './src/ui/TransactionEditor': { TransactionEditor: 'TransactionEditor', newId: () => 'editor' },
     './legacy/assets/images/money.png': 0,
@@ -137,7 +140,7 @@ async function appFixture() {
     'ConnectionsScreen',
   ])
     imports[`./src/ui/${name}`] = { [name]: name };
-  const App = loadSource(path.join(__dirname, '../App.tsx'), imports).default;
+  const App = loadSource(path.join(__dirname, '../App.tsx'), imports).AppContent;
   function find(node, predicate) {
     if (!node || typeof node !== 'object') return null;
     if (node.type === gate.AccountAccessGate)
@@ -497,4 +500,110 @@ test('account data gate hides an assistant from a previous wallet even before it
     null,
   );
   f.host.unmount();
+});
+
+test('cloud recovery is reachable outside the financial data gate only for a confirmed signed-in identity', async () => {
+  const f = await appFixture();
+  const controller = Object.freeze({ name: 'scoped-cloud-controller' });
+  f.account.cloudWallet = {
+    controller,
+    state: { configured: true, signedIn: true, readOnly: true },
+  };
+  f.account.financialAllowed = false;
+  f.account.gateState = {
+    ...f.account.accountState,
+    phase: 'wallet-unavailable',
+    persistence: 'confirmed',
+    user: { uid: 'synthetic-user', displayName: 'Person', email: null },
+    activeOwnerToken: null,
+    busy: false,
+  };
+  let tree = f.render();
+  assert.equal(
+    f.find(tree, (node) => node.type === 'TransactionsScreen'),
+    null,
+  );
+  const action = f.find(tree, (node) => node.props?.testID === 'account-cloud-recovery');
+  assert.ok(action);
+  action.props.onPress();
+  tree = f.render();
+  const screen = f.find(tree, (node) => node.type === 'CloudWalletScreen');
+  assert.equal(screen.props.controller, controller);
+  assert.equal(
+    f.find(tree, (node) => node.type === 'TransactionsScreen'),
+    null,
+  );
+  screen.props.onBack();
+  f.account.gateState = { ...f.account.gateState, persistence: 'unconfirmed' };
+  tree = f.render();
+  assert.equal(
+    f.find(tree, (node) => node.props?.testID === 'account-cloud-recovery'),
+    null,
+  );
+  assert.equal(
+    f.find(tree, (node) => node.type === 'TransactionsScreen'),
+    null,
+  );
+  f.host.unmount();
+});
+
+test('App selects cloud storage disclosure only for the active live-cloud account, independently of configured services or an Auth-only sign-in', async () => {
+  const cases = [
+    { name: 'unconfigured guest', cloud: null, user: null, expected: false },
+    { name: 'Auth-only account', cloud: null, user: { uid: 'local-auth' }, expected: false },
+    {
+      name: 'guest with Firebase available',
+      cloud: { configured: true, signedIn: false },
+      user: null,
+      expected: false,
+    },
+    {
+      name: 'signed-in live cloud wallet',
+      cloud: { configured: true, signedIn: true },
+      user: { uid: 'cloud-user' },
+      expected: true,
+    },
+  ];
+  for (const entry of cases) {
+    const f = await appFixture();
+    let saves = 0;
+    f.account.finance = {
+      ...f.account.finance,
+      save: async () => {
+        saves++;
+        return true;
+      },
+    };
+    f.account.accountState = { ...f.account.accountState, user: entry.user };
+    f.account.cloudWallet = entry.cloud
+      ? { controller: {}, state: { ...entry.cloud, readOnly: false } }
+      : undefined;
+    let tree = f.render();
+    f.find(tree, (node) => node.type === 'TransactionsScreen').props.onAdd();
+    tree = f.render();
+    const editor = f.find(tree, (node) => node.type === 'TransactionEditor');
+    assert.equal(editor.props.cloudAccount, entry.expected, entry.name);
+    assert.equal(editor.props.onSave, f.account.finance.save);
+    f.rootOptions.closeEditor();
+    f.render();
+    f.account.receipts.open();
+    tree = f.render();
+    const receipt = f.find(tree, (node) => node.type === 'ReceiptCaptureSheet');
+    assert.equal(receipt.props.cloudAccount, entry.expected, entry.name);
+    assert.equal(receipt.props.onSave, f.account.finance.save);
+    assert.equal(saves, 0);
+    f.account.financialAllowed = false;
+    f.account.gateState = { ...f.account.accountState, phase: 'switching', activeOwnerToken: null };
+    tree = f.render();
+    assert.equal(
+      f.find(tree, (node) => node.type === 'TransactionEditor'),
+      null,
+    );
+    assert.equal(
+      f.find(tree, (node) => node.type === 'ReceiptCaptureSheet'),
+      null,
+    );
+    assert.equal(saves, 0);
+    f.host.unmount();
+  }
 });

@@ -159,6 +159,7 @@ export function useLedger(options: UseLedgerOptions = {}) {
     clearSaveError,
     getClock: controller.getClock,
     compareAndSave: controller.compareAndSave,
+    retryCloudDraft: controller.retryCloudDraft,
     acquireIdentityLease: controller.acquireIdentityLease,
     adoptIdentityTarget: controller.adoptIdentityTarget,
     isIdentityLeaseReady: controller.isIdentityLeaseReady,

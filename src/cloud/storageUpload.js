@@ -33,10 +33,15 @@ function createStorageUploader({
       : 'https://firebasestorage.googleapis.com';
   const bucket = config.firebase.storageBucket;
   return async function upload(path, bytes, metadata, signal) {
-    const prefix = `users/${owner.uid}/walletBackups/`;
+    const prefix = `users/${owner.uid}/`;
     if (typeof path !== 'string' || !path.startsWith(prefix)) throw failure();
-    const relative = path.slice(prefix.length),
-      match = /^(backup-[a-z0-9-]{16,96})\/(snapshot\.json|photos\/([a-f0-9]{64}))$/.exec(relative);
+    const relative = path.slice(prefix.length);
+    const backup =
+      /^walletBackups\/(backup-[a-z0-9-]{16,96})\/(snapshot\.json|photos\/([a-f0-9]{64}))$/.exec(
+        relative,
+      );
+    const wallet = /^walletFiles\/(main|test-[a-f0-9]{64})\/([a-f0-9]{64})$/.exec(relative);
+    const match = backup || wallet;
     if (
       !match ||
       !(bytes instanceof Uint8Array) ||
@@ -46,14 +51,15 @@ function createStorageUploader({
       sha256Hex(bytes) !== metadata.sha256
     )
       throw failure();
-    const snapshot = match[2] === 'snapshot.json';
+    const snapshot = !!backup && backup[2] === 'snapshot.json';
+    const photoHash = backup ? backup[3] : wallet?.[2];
     if (
       !bytes.length ||
       bytes.length > (snapshot ? MAX_SNAPSHOT_BYTES : MAX_PHOTO_BYTES) ||
       (snapshot
         ? metadata.contentType !== 'application/json'
         : !['image/png', 'image/jpeg', 'image/webp'].includes(metadata.contentType) ||
-          match[3] !== metadata.sha256)
+          photoHash !== metadata.sha256)
     )
       throw failure();
     const captured = new Uint8Array(bytes);

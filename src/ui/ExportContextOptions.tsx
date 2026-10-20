@@ -5,7 +5,7 @@ import type {
   TransactionExportSource,
   TransactionExportSnapshot,
 } from '../core/exports';
-import { colors, ui } from './theme';
+import { useTheme } from './theme';
 
 export function ExportContextOptions({
   source,
@@ -20,6 +20,7 @@ export function ExportContextOptions({
   disabled?: boolean;
   qr?: boolean;
 }) {
+  const { colors, ui } = useTheme();
   const options: { key: keyof ContextSelection; label: string; available: boolean }[] = [
     { key: 'notes', label: 'Notes', available: !!source.context.notes },
     { key: 'withPerson', label: 'Person name', available: !!source.context.withPerson },
@@ -74,6 +75,7 @@ export function SelectedExportDetails({
   snapshot: TransactionExportSnapshot;
   qr?: boolean;
 }) {
+  const { colors, ui } = useTheme();
   const { details, selection } = snapshot;
   const anyText = selection.notes || selection.withPerson || selection.location;
   return (

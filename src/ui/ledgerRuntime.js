@@ -145,7 +145,25 @@ function createLedgerRuntime({
       if (!isBound(captured)) return false;
       let durable = loaded.ledger,
         warning = '';
-      const reconciliation = reconcileAchievements(durable, getClock());
+      if (
+        ledger &&
+        durable.wallet.incarnationId !== ledger.wallet.incarnationId &&
+        captured.storage.kind === 'firebase-live'
+      ) {
+        const guard = transition?.familyToken === captured.familyToken ? transition.guard : null;
+        if (!guard)
+          throw new Error('Owner preparation is required before opening a replaced cloud wallet.');
+        const prepared = await guard.prepare(ledger, durable);
+        if (!prepared.ok || prepared.pending)
+          throw new Error('The previous wallet owner has not finished retiring.');
+      }
+      const readOnly = captured.storage.isReadOnly?.() === true;
+      const reconciliation = readOnly
+        ? { changed: false, ledger: durable }
+        : reconcileAchievements(durable, getClock());
+      if (readOnly)
+        warning =
+          'Showing the last confirmed cloud wallet. Open Cloud Wallet to reconnect or review its draft.';
       if (reconciliation.changed) {
         const committed = await commitLedger({
           current: durable,
@@ -253,6 +271,51 @@ function createLedgerRuntime({
     restore,
     save,
     getClock,
+    async retryCloudDraft(token) {
+      if (
+        writeInFlight ||
+        lease ||
+        !ledger ||
+        binding.storage.kind !== 'firebase-live' ||
+        typeof binding.storage.readDraft !== 'function' ||
+        typeof binding.storage.retryDraft !== 'function'
+      )
+        return false;
+      const captured = binding,
+        expectedOwner = ownerToken(captured.family, ledger);
+      writeInFlight = true;
+      publish({ saving: true, saveError: '' });
+      let knownDraft;
+      try {
+        knownDraft = await captured.storage.readDraft();
+        if (!knownDraft || knownDraft.operationId !== token || !isBound(captured)) return false;
+        if (knownDraft.phase !== 'submitted') {
+          if (knownDraft.phase === 'conflict' || uncertain || adoptionUncertain || view.loadError)
+            return false;
+          writeInFlight = false;
+          return await save(
+            captured,
+            expectedOwner,
+            knownDraft.ledger,
+            'The retained cloud draft was saved.',
+          );
+        }
+        uncertain = true;
+        publish({ loadError: true });
+        await captured.storage.retryDraft(token);
+        if (!isBound(captured)) return false;
+      } catch {
+        publish({
+          saveError:
+            'The retained cloud save is still unconfirmed. Its records were not discarded.',
+        });
+        return false;
+      } finally {
+        writeInFlight = false;
+        publish({ saving: false });
+      }
+      return restore(captured, expectedOwner);
+    },
     compareAndSave(expectedOwnerToken, expectedLedgerJson, next, message) {
       if (
         !ledger ||
@@ -348,7 +411,13 @@ function createLedgerRuntime({
       writeInFlight = true;
       try {
         let warning = '';
-        const reconciliation = reconcileAchievements(durable, getClock());
+        const readOnly = targetStorage.isReadOnly?.() === true;
+        const reconciliation = readOnly
+          ? { changed: false, ledger: durable }
+          : reconcileAchievements(durable, getClock());
+        if (readOnly)
+          warning =
+            'Showing the last confirmed cloud wallet. Open Cloud Wallet to reconnect or review its draft.';
         if (reconciliation.changed) {
           const committed = await commitLedger({
             current: durable,

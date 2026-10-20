@@ -1,4 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createConversationStore, type ConversationStorage } from '../assistant/conversations';
+import { encodeDataFamily } from '../accounts/identity';
 import type { Ledger } from '../core/model';
 import { periodReport } from '../core/reports';
 import type { ReminderOwner } from '../reminders/coordinator';
@@ -26,12 +28,24 @@ export function useAssistantSession({
   owner,
   active,
   connection,
+  historyStorage,
 }: {
   ledger: Ledger | null;
   owner: ReminderOwner | null;
   active: boolean;
   connection: ReturnType<typeof useCompanionConnection>;
+  historyStorage?: ConversationStorage;
 }) {
+  const historyOwnerKey = owner
+    ? encodeDataFamily({ scope: owner.scope, actor: owner.actor })
+    : null;
+  const conversationStore = useMemo(
+    () =>
+      historyStorage && historyOwnerKey
+        ? createConversationStore(historyStorage, historyOwnerKey)
+        : undefined,
+    [historyStorage, historyOwnerKey],
+  );
   const actorKey = owner ? encodeReminderOwner(owner) : null;
   const epoch = useMemo(() => ({}), [actorKey, active, connection.revision, connection.binding]);
   const latest = useRef({ ledger, actorKey, active, epoch, connection });
@@ -138,6 +152,11 @@ export function useAssistantSession({
           actorKey: session.actorKey,
           sessionKey: session.sessionKey,
           initialRange: session.initialRange,
+          initialInclude:
+            session.provider?.engine === 'lemonade'
+              ? { categories: true }
+              : { categories: true, budgets: true, goal: true, comparisons: true },
+          conversationStore,
           transport: session.transport,
           provider: session.provider,
           isCurrent: () =>
