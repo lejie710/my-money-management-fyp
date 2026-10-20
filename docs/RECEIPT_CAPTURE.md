@@ -31,6 +31,8 @@ flowchart LR
 
 OCR reads characters; it does not know that the receipt is accurate. The parser reconstructs rows from word positions, because receipt totals can appear in a separate amount column. It distinguishes labelled totals from subtotal, tax, cash, change and savings rows. Multiple distinct totals remain ambiguous. Identical repeated totals can agree, but still require review.
 
+Hyphenated `Sub-Total` labels, `GST`/`SST` tax rows and abbreviated `Disc` discount rows are excluded from total suggestions and alternatives. If the final amount appears only under an unsupported label such as `Amount Payable`, `Nett` or `Jumlah`, the amount stays blank with a warning for manual entry. A separate recognised `TOTAL` row can still supply a suggestion; explicit review remains required.
+
 Dates such as `03/04/2026` can mean different calendar days. The app shows valid alternatives and does not substitute today's date for an unreadable, invalid or future receipt date. A blank image fills no vendor, date or amount. There is no confidence percentage presented as proof that a suggestion is correct.
 
 Currency follows the wallet's existing precision: MYR uses sen, while JPY uses whole yen. A missing or ambiguous currency prevents automatic total selection and requires explicit review. A known currency that does not match the wallet, or an unsupported currency marker, blocks receipt confirmation. Total choices retain their own interpreted currency, and only matching choices can fill the wallet amount. The feature performs no exchange-rate conversion or silent currency relabelling.

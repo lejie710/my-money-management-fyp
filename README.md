@@ -124,7 +124,7 @@ Actual Firebase emulator checks and real Flask/Prophet fits have separate prereq
 node --test --test-concurrency=1 "tools/backend/tests/*.test.cjs"
 ```
 
-The current integrated check passed **1,221 JavaScript tests and TypeScript**; the optional Python gate passed **51 checks**. Actual Firebase-emulator and native Android checks are recorded separately. Use [Verification](VERIFICATION.md) for source revisions, completed workflows and remaining limits.
+The current integrated check passed **1,224 JavaScript tests and TypeScript**; the optional Python gate passed **51 checks**. Actual Firebase-emulator and native Android checks are recorded separately. Use [Verification](VERIFICATION.md) for source revisions, completed workflows and remaining limits.
 
 ## Feature guides
 

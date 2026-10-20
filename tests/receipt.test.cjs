@@ -198,6 +198,47 @@ test("subtotal tax cash change savings and item counts are never promoted to tot
     null,
   );
 });
+test("hyphenated subtotals do not supply an amount when the final label is unsupported", () => {
+  for (const label of ["Sub-Total", "Sub - Total", "sUb-ToTaL"]) {
+    const result = r.parseReceipt(
+      fixture(["SHOP", `${label} RM10.00`, "Amount Payable RM10.60"]),
+      options,
+    );
+    assert.equal(result.total.suggestedMinor, null, label);
+    assert.deepEqual(result.total.candidates, [], label);
+    assert.ok(result.total.issues.includes("No usable labelled total was identified."));
+  }
+});
+test("GST SST and abbreviated discount rows never become total alternatives", () => {
+  for (const [excluded, final] of [
+    ["Total GST RM0.60", "Nett RM10.60"],
+    ["TOTAL SST RM0.60", "Jumlah RM10.60"],
+    ["Total Disc RM1.00", "Nett RM10.60"],
+    ["Total Disc. RM1.00", "Amount Payable RM10.60"],
+  ]) {
+    const result = r.parseReceipt(fixture(["SHOP", excluded, final]), options);
+    assert.equal(result.total.suggestedMinor, null, excluded);
+    assert.deepEqual(result.total.candidates, [], excluded);
+    assert.ok(result.total.issues.includes("No usable labelled total was identified."));
+  }
+});
+test("a genuine labelled total remains usable beside excluded subtotal tax and discount rows", () => {
+  const result = r.parseReceipt(
+    fixture([
+      "SHOP",
+      "Sub-Total RM10.00",
+      "Total GST RM0.60",
+      "Total SST RM0.40",
+      "Total Disc. RM0.40",
+      "TOTAL RM10.60",
+    ]),
+    options,
+  );
+  assert.equal(result.total.suggestedMinor, 1060);
+  assert.deepEqual(result.total.candidates.map((row) => row.amountMinor), [1060]);
+  assert.deepEqual(result.total.issues, []);
+  assert.equal(result.reviewRequired, true);
+});
 test("amount grouping is exact; commas decimal/refunds/oversized/JPY fractional values require manual correction", () => {
   assert.equal(
     r.parseReceipt(fixture(["SHOP", "TOTAL RM1,234.56"]), options).total
