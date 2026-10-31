@@ -1,6 +1,6 @@
 # Isolated native verification scenarios
 
-The normal app loads its saved wallet or creates the small sample ledger. Native verification can select a fixed synthetic history through two public build-time environment variables:
+The normal app loads its saved wallet or creates an empty guest wallet. For native verification, these two public build-time environment variables select a fixed synthetic history:
 
 ```powershell
 $env:EXPO_PUBLIC_TEST_DATA_NAMESPACE = 'reports-check-1'

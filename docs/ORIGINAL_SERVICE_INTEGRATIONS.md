@@ -1,8 +1,8 @@
 # Original service integrations
 
-My Money Management began as a 2024 final-year project using Firebase, OpenAI, Google Cloud Vision and Flask/Prophet. This repository completes that service-oriented direction while keeping an account-free guest experience and optional local tools. Future users configure their own projects and backend; no original account or provider credential is supplied.
+My Money Management began as a 2024 final-year project using Firebase, OpenAI, Google Cloud Vision and Flask/Prophet. The current app includes these integrations alongside a guest wallet that needs no account and optional local tools. To use the connected features, configure your own projects and backend. The repository includes no original account or provider credentials.
 
-Implementation, local verification and deployment are separate. The source contains real adapters and account-storage paths, rather than a static demonstration of the service screens. This does not establish live OpenAI/Vision access, hosted Firebase availability, email delivery, model quality or a public deployment. The dated [verification record](../VERIFICATION.md) identifies the checks actually completed.
+The service adapters and account-storage paths are implemented. Live OpenAI/Vision access, hosted Firebase availability, email delivery, model quality and public deployment remain unverified. The dated [verification record](../VERIFICATION.md) lists the local checks that have been completed.
 
 ## Architecture and setup
 
@@ -28,7 +28,7 @@ flowchart LR
 | Google Cloud Vision | Receipt text recognition followed by editable review and explicit expense confirmation              | [Backend setup](../tools/backend/README.md), [receipt guide](RECEIPT_CAPTURE.md), [Vision adapter](../scripts/companion/ocr/GOOGLE_VISION.md)        |
 | Flask and Prophet   | Six future monthly expense estimates from completed expense history                                 | [Backend setup](../tools/backend/README.md), [forecast guide](MONTHLY_FORECAST.md), [model setup/evaluation](../tools/forecast/README.md)            |
 
-Hosted Firebase Storage requires the billing setup described in the [Firebase guide](../tools/firebase-backup/README.md). No-cost usage allowances do not make that hosted prerequisite disappear; local demo emulators are a separate route.
+Hosted Firebase Storage requires the billing setup described in the [Firebase guide](../tools/firebase-backup/README.md), including when usage stays within no-cost allowances. Local demo emulators run separately.
 
 The phone can use a separately deployed backend; it does not need a Windows computer beside it in this configuration. The backend verifies the current Firebase identity, binds requests to their owner and selected provider, enforces usage/concurrency bounds and keeps provider credentials on the server. Source setup does not create a cloud project, deploy a server or make a paid provider request.
 
@@ -50,7 +50,7 @@ The supported cloud ledger is a validated versioned document, with a 768 KiB pay
 
 Choosing a photo in the editor does not upload it. Saving an attachment with a configured account transaction uploads it to the owner's Firebase Storage before the corresponding financial commit is confirmed. Managed device references and content hashes are used instead of storing arbitrary file URIs or tokenized download URLs in the cloud ledger. Downloaded attachments are checked against their manifest and copied into owned local storage.
 
-An unavailable image does not fabricate a successful download. Confirmed financial records can remain visible with a photo-download warning. Original device images, retained source-wallet references and pending-operation attachments are protected during cleanup. Remote attachment-orphan deletion is not implemented; removing a transaction reference does not promise immediate deletion of the immutable remote object.
+If an image cannot be downloaded, confirmed financial records can remain visible with a photo-download warning. Cleanup preserves original device images, retained source-wallet references and attachments used by pending operations. Remote attachment-orphan deletion is not implemented; removing a transaction reference does not immediately delete the immutable remote object.
 
 Manual backup is an additional recovery snapshot, separate from everyday saves. Backup photos are selected explicitly. Restore requires the exact unchanged empty target; when that target is a live Firebase wallet, confirming restore writes the restored financial records and selected attachments to Firebase. It does not import Auth sessions, profile extras, notification schedules, exports or local conversations. See the [Firebase guide](../tools/firebase-backup/README.md) for supported limits and recovery steps.
 
@@ -74,7 +74,7 @@ Keeping the receipt photo is a separate choice. In guest mode it remains local; 
 
 Prophet receives only the applied currency, dates and completed monthly expense totals. Income, debt payments, the partial current month, future entries, transaction descriptions, photos and account profile fields are excluded from model input. Account authentication is handled separately by the backend.
 
-The contract requires 8–120 completed months and at least three active expense months, and returns exactly six future target months. The linear configuration has no seasonal components or prediction intervals. Negative predictions are preserved and labelled as model output. The separate device methods remain available offline; their historical error figures and bounds must not be attributed to Prophet.
+The contract requires 8 to 120 completed months and at least three active expense months, and returns exactly six future target months. The linear configuration has no seasonal components or prediction intervals. Negative predictions are preserved and labelled as model output. The separate device methods remain available offline; their historical error figures and bounds must not be attributed to Prophet.
 
 Windows has actual local Prophet execution evidence. The deployable backend also has Linux worker source with ownership/resource limits and mocked supervisor checks. Native Linux execution and a Docker image build have not been established on the development machine. See [Verification](../VERIFICATION.md) and the provider-specific guides for the precise execution evidence.
 
@@ -95,4 +95,4 @@ A visitor runs the app with no account/service configuration, records a guest ex
 
 After configuring their own Firebase project, the visitor signs in and sees that account's separate cloud wallet. They may preview and confirm copying the guest wallet into an empty account target; the guest source remains. Later account edits require server confirmation. Asking OpenAI is still a separate action: it sends the selected summaries, current question and bounded conversation context, not the whole cloud ledger or its photos.
 
-The [verification record](../VERIFICATION.md) remains the authority for completed source checks, emulator/native runs and limitations. No screenshot or injected-provider response should be presented as a live hosted OpenAI/Vision result.
+See the [verification record](../VERIFICATION.md) for completed source checks, emulator/native runs and their limits. Screenshots and injected provider responses do not establish a live hosted OpenAI/Vision result.
