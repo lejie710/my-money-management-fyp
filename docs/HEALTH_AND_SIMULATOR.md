@@ -1,6 +1,6 @@
 # The illustrative score and what-if simulator
 
-The FYP cash-flow score preserves the submitted project's two scoring rules in one shared function. Reports and scenarios now use the same formula and include debt payments in net cash flow. The score is an illustrative project calculation, not a validated assessment of someone's complete financial position.
+Reports and the simulator use the same cash-flow formula, with debt payments included in net cash flow. The score is a project calculation based on two rules. It has not been validated as an assessment of someone's complete financial position.
 
 ## One explicit formula
 
@@ -13,9 +13,9 @@ Debt-ratio deduction = max(0, debt payments / income - 0.30) * 100
 Score = 100 - the two deductions, bounded to 0 through 100
 ```
 
-The 25 percent and 30 percent thresholds are inherited assumptions from the FYP. The interface exposes both deductions and the formula version, `fyp-cash-flow-v1`. It does not invent additional good/bad bands or recommendations from those thresholds. Budgets and goals do not affect this score.
+The 25 percent and 30 percent thresholds are project assumptions. The interface shows both deductions and the formula version, `fyp-cash-flow-v1`. It has no additional good/bad bands or recommendations based on these thresholds. Budgets and goals do not affect the score.
 
-If income is zero, the score and its income-based ratios are unavailable. Recorded outflow and net change still have exact values. Missing a usable denominator must not create a default score of 75 or imply that no expenses exist.
+If income is zero, the score and its income-based ratios are unavailable. Outflow and net change still have exact values. The app does not substitute a default score of 75 or treat zero income as zero spending.
 
 For RM1,000 income, RM800 expenses, and RM400 debt payments:
 
@@ -68,9 +68,7 @@ Apply the RM1,000 / RM800 / RM400 scenario:
 
 Applying these same inputs again leaves every result unchanged. Reset restores the recorded inputs, RM2,200 closing, RM2,680 all-date balance, and their 100.00 illustrative score. Closing the sheet leaves the real ledger unchanged.
 
-Exercise: set all three scenario amounts to zero. Does the wallet become empty?
-
-Answer: the scenario's period net becomes zero, so period closing is the original RM750 opening. The what-if all-date balance is `2680 + 0 - 1450 = RM1,230`. Entries outside October remain included. The score is unavailable because scenario income is zero.
+Setting all three scenario amounts to zero leaves a period net of zero and a closing balance of RM750, the original opening amount. The what-if all-date balance is `2680 + 0 - 1450 = RM1,230` because it still includes entries outside October. The score is unavailable because scenario income is zero.
 
 ## Validation and limits
 

@@ -1,10 +1,10 @@
 # Apple-inspired mobile interface
 
-Activity, Plan, Reports and Wallet use grouped surfaces, platform typography and readable amounts. The accepted Apple-inspired layout is retained while Android remains the verified development target. The interface presents ordinary financial work first and keeps account/service configuration discoverable under Wallet > Connections, in the Tools section.
+Activity, Plan, Reports and Wallet use Apple-inspired grouping, platform fonts and readable amounts. Android is the verified development target. Financial tasks sit in the main screens; account and service settings are under Wallet > Connections, in the Tools section.
 
 ## Appearance and balance visibility
 
-Wallet offers System, Light and Dark. System is the default; the override is saved on this device. Changing appearance updates existing screens and sheets without intentionally remounting the financial app or discarding typed fields. The status bar, input appearance and semantic colors follow the selected mode.
+Wallet offers System, Light and Dark. System is the default, and the override is saved on this device. Appearance changes update existing screens and sheets while keeping the financial app mounted and retaining typed fields. The status bar, inputs and semantic colors follow the selected mode.
 
 | Role              | Light     | Dark      | Purpose                                              |
 | ----------------- | --------- | --------- | ---------------------------------------------------- |
@@ -64,7 +64,7 @@ Configured service metadata describes the selected route, not a successful infer
 
 ## Verification
 
-[Verification](../VERIFICATION.md) records completed source checks and actual Android workflows by scope. It is the authority for counts and final integration status. Native rendering, persistence, permissions and accessibility require their own checks; automated contrast and hook tests cover narrower behavior. The record distinguishes completed walkthroughs from remaining device and platform limits.
+[Verification](../VERIFICATION.md) lists the completed source checks and Android workflows, with their counts and integration status. Automated contrast and hook tests cover only part of the behavior; rendering, persistence, permissions and accessibility also need native checks. The record identifies which walkthroughs were completed and which device or platform checks remain.
 
 ## Native Android gallery
 
@@ -74,7 +74,7 @@ The phone views use fictional records in a 277-transaction MYR wallet. The walle
 
 | View                | What it shows                                                                                                                                                                                                                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Activity            | The all-date wallet balance and By month activity selector for October 2026, with 23 entries. Period totals below this viewport are not claimed as visible.                                                                                                                                   |
+| Activity            | The all-date wallet balance and By month activity selector for October 2026, with 23 entries. The screenshot ends above the period totals.                                                                                                                                                     |
 | Transaction details | The saved receipt photo and note within an ordinary transaction's optional details.                                                                                                                                                                                                           |
 | Category budgets    | Food & beverages spending of RM517.80 against an October budget of RM800.00, leaving RM282.20.                                                                                                                                                                                                |
 | Savings goal        | Progress derived from the recorded wallet balance, without moving or reserving money.                                                                                                                                                                                                         |
@@ -98,6 +98,6 @@ These three native views were verified at the 18-19 October 2026 restoration che
 | <a href="images/wallet.png"><img src="images/wallet.png" alt="Everyday wallet settings in MYR" width="240"></a> | <a href="images/report-balances.png"><img src="images/report-balances.png" alt="October opening, closing and all-date wallet balances" width="240"></a> | <a href="images/device-forecast.png"><img src="images/device-forecast.png" alt="Six monthly projections from the device forecast" width="240"></a> |
 | Everyday wallet, MYR and its recorded balance.                                                                  | October opens at RM22,276.00 and closes at RM23,677.70; the all-date balance remains separately labelled.                                               | The device method projects RM2,644.00 for each of six future months. This is separate from Prophet output.                                         |
 
-Achievements, reminders, QR sharing and additional transaction tools are covered in their feature guides. The showcase does not imply that every feature appears in one gallery.
+The gallery shows selected workflows. The feature guides also cover achievements, reminders, QR sharing and additional transaction tools.
 
 See [Android setup](ANDROID_SETUP.md) for the build path and [Verification](../VERIFICATION.md) for workflow evidence and limits. The gallery demonstrates the captioned local workflows. Hosted Firebase, live OpenAI/Google Vision, a deployed backend, iOS and a full screen-reader audit retain the limits recorded in Verification.

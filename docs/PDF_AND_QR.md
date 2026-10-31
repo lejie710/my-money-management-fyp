@@ -48,8 +48,6 @@ The cache permits at most 20 files and 100 MiB in total, with a 25 MiB and 500-p
 
 For the report verification wallet, October opens at RM750.00. Income of RM2,000.00, expenses of RM250.00 and debt payments of RM300.00 give a net increase of RM1,450.00 and a closing balance of RM2,200.00. Later November records make the all-record balance RM2,680.00. The PDF must keep those two balances separately labelled.
 
-Exercise: a JPY transaction records 1,234 yen and has notes and a photo. Select the photo for PDF, leave every QR option off, and display the QR. What should a decoded summary contain?
-
-Answer: `currency: "JPY"`, `amountMinor: 1234`, `fractionDigits: 0`, and the transaction's title, type, date and category. It should contain no notes, photo, attachment path or person/place details. Selecting a PDF photo does not change QR options.
+To check that PDF and QR choices stay separate, use a JPY transaction for 1,234 yen with notes and a photo. Select the photo for PDF, leave every QR option off, and display the QR. The decoded summary should contain `currency: "JPY"`, `amountMinor: 1234`, `fractionDigits: 0`, and the transaction's title, type, date and category. It should contain no notes, photo, attachment path or person/place details. Selecting a PDF photo does not change QR options.
 
 See [Verification](../VERIFICATION.md) for the native checks actually completed on each checkpoint. Automated control-flow and failure tests do not by themselves establish PDF pagination, QR readability or iOS behavior.

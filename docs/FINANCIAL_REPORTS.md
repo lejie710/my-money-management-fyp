@@ -49,9 +49,7 @@ For October:
 - All-date wallet balance: `2200 + 500 - 20 = RM2,680`.
 - Food share of expenses: `200 / 250 = 80%`; transport is 20 percent.
 
-Exercise: change the range to 15–31 October. What happens to opening, net change, and closing?
-
-Answer: the opening becomes RM2,750 because the October salary is now earlier history. The range contains no income and RM550 outflow, so net change is −RM550. Closing remains RM2,200. Income-based ratios are unavailable for this range even though income exists elsewhere in the wallet.
+Changing the range to 15 through 31 October moves the October salary into earlier history, so the opening balance becomes RM2,750. This range has no income and RM550 outflow, giving a net change of −RM550. Closing stays at RM2,200. Income-based ratios are unavailable for this range, even though income exists elsewhere in the wallet.
 
 ## Implementation and verification
 
