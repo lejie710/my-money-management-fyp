@@ -31,3 +31,12 @@ legacy/.env*
 *.pem
 *.key
 *.pfx
+
+# Local authoring and release artifacts are not part of the source portfolio.
+*.pdf
+*.docx
+My_Money_Management_Technical_Companion_2026/
+Editable_Diagrams_Revision_*.zip
+Audit_Resolution.html
+Proposed_Application_Improvements.html
+Portfolio_Release_Preparation_*/

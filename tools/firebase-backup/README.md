@@ -23,13 +23,15 @@ Open **Wallet > Connections > Account access** to sign in, and **Wallet > Connec
 
 An offline cache is not a second source of truth and does not prove that an uncertain server write failed. Unknown dispatched saves keep financial access guarded until reconciliation establishes their outcome. The app also keeps records gated if saved Auth persistence cannot be confirmed; it never treats an unreadable account session as permission to open a different wallet. A fresh installation without a downloaded account wallet needs a connection to open that cloud wallet.
 
+Invalid remote content is rejected by the client decoder, but its generic error can still enter the ordinary offline fallback when a valid confirmed cache exists and no submitted save is unresolved. The app shows that valid cache, not the invalid payload. An explicit Refresh skips fallback and reports unavailable. There is no specific in-app repair for invalid server records, so preserve the cache and investigate the remote record rather than assuming every offline indication is a connection failure.
+
 Photos explicitly kept on signed-in transactions are part of ordinary account storage. Choosing an image for receipt recognition alone does not attach it to the wallet. Receipt processing and keeping a transaction attachment have separate actions. The cloud financial payload contains validated photo references and SHA-256 digests, not local file paths, picker URIs or tokenized download URLs.
 
 ## Copy an existing device wallet
 
 Use **Cloud wallet > Preview this account's device wallet** or **Preview guest wallet copy**. These actions read the preserved local source and show its financial summary and photo count. Only **Confirm cloud copy** uploads the reviewed copy. The source wallet remains on the device.
 
-The destination must be unchanged and empty: no transaction history, transactions, budgets, savings goal, milestone/check-in/review evidence or custom categories. There is no merge or populated-wallet overwrite. The source is reread before confirmation, and the server target is rechecked. An account change, financial restoration, open editor, unknown write, changed source or changed target retires the old confirmation.
+The destination must be unchanged and empty: no transaction history, transactions, budgets, savings goal or milestone/check-in/review evidence. Its categories must exactly match the unchanged defaults; the absence of custom categories alone is insufficient. There is no merge or populated-wallet overwrite. The source is reread before confirmation, and the server target is rechecked. An account change, financial restoration, open editor, unknown write, changed source or changed target retires the old confirmation.
 
 A guest photo copy stages new managed files in the target account's family before saving. A failed preparation does not save financial records. Unconfirmed owned-file cleanup is shown separately with **Retry photo cleanup**, including when the financial save itself already succeeded. The old guest-copy button in Cloud Backup cannot upload into an everyday Firebase wallet; it directs users to this explicit cloud-copy workflow.
 
@@ -41,12 +43,16 @@ Open **Wallet > Connections > Cloud backup**. Opening the screen does not create
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Preview cloud backup               | Captures the current account wallet and selected photo policy. Confirmation rechecks the source before persisting the operation intent and uploading it.              |
 | Load completed backups             | Reads up to the fifty newest complete backup indexes. It does not restore records.                                                                                    |
-| Preview restore                    | Downloads and validates the selected snapshot, then shows its summary. Confirmation requires the same unchanged empty account wallet.                                 |
+| Preview restore                    | Checks target eligibility before downloading and validating the selected snapshot, then shows its summary. Confirmation requires the same unchanged empty account wallet. |
 | Confirm restore to Firebase wallet | Stages selected photos with fresh ownership and saves the restored records into the empty current Firebase wallet. Other devices can retrieve those restored records. |
 | Resume and reconcile backup        | Reuses the persisted backup ID and verifies existing remote snapshot/photo bytes instead of creating another backup after a timeout.                                  |
 | Discard pending operation          | Requires acknowledgement for that exact operation. It removes the local backup intent only; incomplete private cloud objects and completed backups remain.            |
 
 Do not clear app data or erase a populated wallet merely to make a restore button available. Preserve needed records first and arrange a deliberately empty target. A snapshot that exceeds the everyday wallet's size or photo limits cannot be restored into that live target, even when the backup format itself permits a larger snapshot.
+
+The app does not expose a backup-size check before resetting a used wallet: restore preview requires an eligible empty target, and the backup list shows counts without payload size. A completed backup therefore does not guarantee that it fits the 768 KiB live-wallet limit. **Start fresh has no Undo** and replaces the current cloud wallet that other devices retrieve; use it only for an intentional replacement.
+
+An oversize save or restore candidate can be retained as an unsubmitted operation before its size is rejected, keeping the confirmed wallet read-only. Retrying the unchanged candidate repeats the failure. Use Cloud Wallet's **Discard unsubmitted draft** action only for an explicitly unsubmitted operation, then confirm the refreshed records. After Start fresh, those confirmed records may already be empty; discard does not recover the pre-reset contents. A submitted operation with an unknown outcome must first reconcile, regardless of repeated Retry failures.
 
 Current wallets and backups include supported financial records, notes, person/place labels, categories, budgets, the savings goal and achievement evidence. They exclude authentication credentials, email/display-name/profile extras, notification schedules, exported PDFs and device conversation history. Restoring records does not recreate old notification schedules or sign in another account. Profile extras, appearance settings and unfinished form drafts remain device-local.
 
@@ -123,6 +129,8 @@ After installing the optional CLI dependencies, run the following manually from 
 The [Firebase CLI reference](https://firebase.google.com/docs/cli) documents project selection and deployment. This repository's verification has not executed those hosted commands. Never copy another person's project settings, service-account JSON, admin credentials, OpenAI keys or Google Vision secrets into the app.
 
 Firebase client configuration identifies a project; authentication and deployed access rules protect its data. An environment variable beginning `EXPO_PUBLIC_` can be bundled and is not secret. See [Firebase API-key guidance](https://firebase.google.com/docs/projects/api-keys). The app does not add end-to-end encryption to uploaded records or photos; people with appropriate administrative access to the configured project can access its data.
+
+The Firestore rules enforce ownership, record-field shapes, revision steps and matching operation receipts. They compare supplied hashes but do not parse the ledger JSON or recompute its hash. The client decoder performs those checks and validates financial relationships. Treat access control, write-protocol consistency and semantic ledger validation as separate boundaries.
 
 Hosted password reset submits a Firebase email request. A successful API response does not prove delivery. The three-service emulator never sends a real email; its reset request remains a local emulator action and does not use the older Auth-only inbox UI. Multi-tenant Auth, anonymous account migration, custom Firestore database selection and automatic account deletion are outside this implementation.
 

@@ -1,10 +1,14 @@
 # My Money Management
 
-My Money Management is a personal finance app I originally developed for my 2024 final-year project. I have since refined its financial calculations, data recovery and mobile interface, with expense tracking, budgeting, reports, receipt recognition and forecasting.
+My Money Management is an Android personal finance app built with React Native and Expo. I originally developed it for my 2024 final-year project and revisited it in 2026 to refine its financial calculations, data recovery and mobile interface. It includes expense tracking, budgeting, reports, receipt recognition and forecasting.
 
 The project preserves its original Firebase, OpenAI, Google Cloud Vision and Flask/Prophet direction. A configured account uses Firebase for everyday financial records and attached photos; a separately deployable backend connects the phone to the original assistant, receipt-recognition and forecasting services. Future users supply their own project and private server configuration.
 
 A fresh installation starts with an **empty device-local guest wallet**. Transactions, budgets, reports and device calculations work without an account or server. Signing in opens a separate account wallet; existing guest records are copied only after an explicit preview and confirmation. Existing supported device wallets are retained.
+
+**Start here:** [Screenshots](#screenshots) show the main workflows; [Architecture](docs/ARCHITECTURE.md) follows an expense through the system; [Verification](VERIFICATION.md) separates recorded checks from unverified environments; [Android setup](docs/ANDROID_SETUP.md) explains how to run the development app.
+
+This repository is a portfolio and development project. Its recorded native walkthroughs use an Android emulator. No production APK, public backend deployment or live OpenAI/Google Vision verification is claimed; the service setup and evidence boundaries are described below.
 
 ## Screenshots
 
@@ -59,7 +63,7 @@ The receipt view uses real Windows OCR; the forecast uses the real Prophet servi
 | Prophet forecast             | Flask/Prophet projects six future expense months from completed monthly totals                                                                            | Configured backend with its Python environment; a separate device calculation remains available offline                                       |
 | Calculators and native tools | Illustrative cash-flow score, what-if simulator, loan schedule, achievements, reminders, photos, selected contact/place labels, PDF export and QR sharing | Installed project app and relevant permissions; map tiles/address lookup need network/provider availability                                   |
 | Display and unfinished work  | System/Light/Dark appearance, Activity balance visibility, retained transaction/budget/goal drafts                                                        | Device-local preferences and drafts. Hiding the home balance does not hide transaction amounts or reports                                     |
-| Optional local service route | Qwen through Lemonade, Windows OCR, the Auth-only emulator and local Prophet                                                                              | Explicit Windows helper setup. A failed hosted request never switches to these providers automatically                                        |
+| Optional local service route | Qwen through Lemonade, Windows OCR, the Auth-only emulator and local Prophet                                                                              | The paired Windows companion requires a debug build and Android emulator. Configure the route before starting/reloading the bundle; hosted failure never selects it automatically |
 
 [Original service integrations](docs/ORIGINAL_SERVICE_INTEGRATIONS.md) explains the architecture and the differences from the original implementation. [Backend setup](tools/backend/README.md) prepares an independent service that can be deployed without keeping a Windows computer beside the phone. Source/configuration support is separate from live service verification: no live OpenAI/Vision calls or public backend deployment are claimed. Windows local Prophet execution has separate recorded evidence; native Linux/container execution remains unverified.
 
@@ -124,7 +128,7 @@ Actual Firebase emulator checks and real Flask/Prophet fits have separate prereq
 node --test --test-concurrency=1 "tools/backend/tests/*.test.cjs"
 ```
 
-The current integrated check passed **1,224 JavaScript tests and TypeScript**; the optional Python gate passed **51 checks**. Actual Firebase-emulator and native Android checks are recorded separately. Use [Verification](VERIFICATION.md) for source revisions, completed workflows and remaining limits.
+The verification record for **19–20 October 2026** includes **1,224 JavaScript tests and TypeScript** at the receipt correction and **51 optional Python checks** at the completion checkpoint. Actual Firebase-emulator and native Android checks are recorded separately. Use [Verification](VERIFICATION.md) for source revisions, completed workflows and remaining limits; these counts are recorded results, not a new run on every documentation update.
 
 ## Feature guides
 

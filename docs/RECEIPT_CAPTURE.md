@@ -31,7 +31,9 @@ flowchart LR
 
 OCR reads characters; it does not know that the receipt is accurate. The parser reconstructs rows from word positions, because receipt totals can appear in a separate amount column. It distinguishes labelled totals from subtotal, tax, cash, change and savings rows. Multiple distinct totals remain ambiguous. Identical repeated totals can agree, but still require review.
 
-Hyphenated `Sub-Total` labels, `GST`/`SST` tax rows and abbreviated `Disc` discount rows are excluded from total suggestions and alternatives. If the final amount appears only under an unsupported label such as `Amount Payable`, `Nett` or `Jumlah`, the amount stays blank with a warning for manual entry. A separate recognised `TOTAL` row can still supply a suggestion; explicit review remains required.
+Hyphenated `Sub-Total` labels, `GST`/`SST` tax rows and abbreviated `Disc` discount rows are excluded from total suggestions and alternatives. The exclusion list is finite: `Total Rounding` and `Total Service Charge` can still supply misleading suggestions. An unsupported final label such as `Amount Payable`, `Nett` or `Jumlah` leaves the amount blank only when no other usable total-labelled row is found. A separate recognised `TOTAL` row can still supply a suggestion; explicit image review remains required.
+
+The exclusion also has a cost: `GST` or `SST` anywhere in a row excludes that row, including a legitimate tax-inclusive final amount. When `Total Incl. SST RM10.60` is the only usable total row, the current parser leaves the amount blank and the user must enter it after checking the image. A separate plain `TOTAL` row remains usable. Parser acceptance is not proof of the amount paid, and a blank suggestion is not proof that the receipt lacks a total.
 
 Dates such as `03/04/2026` can mean different calendar days. The app shows valid alternatives and does not substitute today's date for an unreadable, invalid or future receipt date. A blank image fills no vendor, date or amount. There is no confidence percentage presented as proof that a suggestion is correct.
 
