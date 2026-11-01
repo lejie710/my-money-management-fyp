@@ -1,82 +1,68 @@
 # My Money Management
 
-My Money Management is an Android personal finance app built with React Native and Expo. I first developed it for my 2024 final-year project, then revisited it in 2026 to improve the calculations, data recovery and mobile interface. It includes expense tracking, budgets, reports, receipt recognition and forecasting.
+[![My Money Management: track expenses and plan your budget, with real Activity and Plan screens](docs/images/portfolio/cover.png)](docs/images/portfolio/cover.png)
 
-The optional connected features use Firebase, OpenAI, Google Cloud Vision and Flask/Prophet, which were also part of the original project. Firebase stores account records and attached photos. A separate backend handles assistant, receipt-recognition and forecast requests. For the hosted route, use your own Firebase project and private server configuration.
+My Money Management is a personal finance app built with React Native and Expo. I developed it for my 2024 final-year project around three objectives: a financial score, an assistant for financial questions, and expense forecasting. I revisited the project in 2026 to improve calculations, data recovery and the mobile interface. The current development build targets Android.
 
-A fresh installation opens an empty guest wallet on the device. Transactions, budgets, reports and device calculations work without an account or server. Signing in opens a separate account wallet. Copying guest records requires a preview and confirmation, and existing supported device wallets are kept.
+[Project objectives](#project-objectives) | [Financial score](#financial-score-and-what-if-analysis) | [Screenshots](#screenshots) | [Architecture](docs/ARCHITECTURE.md) | [Run locally](#run-the-android-app) | [Verification](VERIFICATION.md)
 
-Browse the [screenshots](#screenshots), follow an expense through the [architecture](docs/ARCHITECTURE.md), read the [verification record](VERIFICATION.md), or use [Android setup](docs/ANDROID_SETUP.md) to run the development app.
+This is a portfolio and development project. Native walkthroughs used an Android emulator; a production APK is not distributed here. Public backend deployment and live OpenAI/Google Cloud Vision calls remain unverified. The [verification record](VERIFICATION.md) separates source tests, local services and native checks.
 
-This is a portfolio and development project. Native walkthroughs used an Android emulator. A production APK is not distributed here, and public backend deployment and live OpenAI/Google Vision calls have not been verified. Setup requirements and testing limits are listed below.
+## Project objectives
+
+### Financial score
+
+Reports calculates a **cash-flow score out of 100** from recorded income, expenses and debt payments. The what-if simulator uses the same formula. This is an illustrative project calculation and requires positive recorded income. [Calculation and examples](docs/HEALTH_AND_SIMULATOR.md)
+
+### Financial assistant
+
+A configured OpenAI backend explains selected financial summaries and supports follow-up questions. The assistant cannot change financial records. Live OpenAI calls remain unverified. [Assistant guide](docs/FINANCIAL_ASSISTANT.md)
+
+### Expense forecasting
+
+Flask/Prophet estimates six future expense months from completed monthly history. A separate device calculation works offline. Real Prophet runs were checked locally on Windows; the estimates do not establish future accuracy. [Forecast guide](docs/MONTHLY_FORECAST.md)
+
+## Everyday finances
+
+[![Transactions, category budgets and period spending reports](docs/images/portfolio/features.png)](docs/images/portfolio/features.png)
+
+A fresh installation opens an empty guest wallet on the device. Transactions, budgets, reports and device calculations work without an account or server. Signing in opens a separate account wallet; copying guest records requires a preview and confirmation, and the source records are retained.
+
+- Record income, expenses and debt payments, with categories and optional notes or photos.
+- Compare spending with category budgets and follow a savings target based on the wallet balance.
+- Review period balances and category breakdowns, export a PDF, or calculate loan repayments.
+- Review receipt-recognition suggestions before saving an expense.
+
+The [feature and navigation guide](docs/FEATURES.md) covers currencies, reminders, achievements, sharing, drafts and optional connections.
+
+## Financial score and what-if analysis
+
+[![Cash-flow score and what-if analysis, with the actual simulator result screen](docs/images/portfolio/financial-score.png)](docs/images/portfolio/financial-score.png)
+
+Open **Reports**, choose a month or date range, and scroll below **Recorded cash flow** to **FYP cash-flow score**. **Show calculation** explains the two deductions. **Try a what-if scenario** compares hypothetical income, expenses and debt payments with the recorded period, while leaving saved transactions unchanged.
+
+The score starts at 100 and applies deductions when net cash flow is below 25% of income or debt payments exceed 30% of income, bounded to 0 through 100. Those thresholds are project assumptions, not financial recommendations. Zero recorded income makes the score unavailable; budgets and savings-goal targets do not alter it. The [score guide](docs/HEALTH_AND_SIMULATOR.md) gives the formula, worked examples and limits.
 
 ## Screenshots
 
-The screenshots use fictional financial records; a fresh installation starts empty. They show real Android screens and the first page of an app-generated report. Captions identify the service used for each connected feature.
+The [full screenshot tour](docs/SCREENSHOTS.md) covers the financial score, assistant, forecasts, planning tools, receipt review, backup and PDF export. All financial records shown are fictional. The [original captures and captions](docs/SCREENSHOTS.md#original-captures) remain available at full resolution.
 
-### Record and plan
+Captions identify Windows OCR with a manually entered receipt amount, a local Prophet run, Firebase-emulator backup previews and an OpenAI form before submission. They do not establish live OpenAI/Google Cloud Vision calls or a public deployment.
 
-| Activity                                                                                                                           | Transaction details                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a href="docs/images/activity.png"><img src="docs/images/activity.png" alt="Wallet balance and recorded activity" width="320"></a> | <a href="docs/images/transaction-details.png"><img src="docs/images/transaction-details.png" alt="A transaction with its selected photo and details" width="320"></a> |
-| View the all-date wallet balance and select October 2026 activity, containing 23 recorded entries.                                 | Keep a receipt photo and optional details with an ordinary transaction.                                                                                               |
+## How it is built
 
-| Category budgets                                                                                                                         | Savings goal                                                                                                                                 |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a href="docs/images/plan.png"><img src="docs/images/plan.png" alt="Category budget with spending and remaining amount" width="320"></a> | <a href="docs/images/goal.png"><img src="docs/images/goal.png" alt="Savings goal progress from the recorded wallet balance" width="320"></a> |
-| Compare category spending with its own budget, dates and remaining amount.                                                               | Follow progress toward a savings target using the recorded wallet balance.                                                                   |
+[![Technology map showing the device app, Firebase account storage and the separate Node.js service gateway](docs/images/portfolio/technology.png)](docs/images/portfolio/technology.png)
 
-### Understand and explore
+| Part                    | Technologies and purpose                                                                                                                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mobile app              | React Native, Expo and TypeScript UI, with JavaScript calculation modules. AsyncStorage holds device records, drafts and conversation history. Expo modules support native tools; MapLibre supports place labels. |
+| Optional account wallet | Firebase Authentication provides account access, Firestore stores financial records and backup indexes, and Cloud Storage holds photos and recovery snapshot content.                                             |
+| Service backend         | Node.js checks Firebase ID tokens and routes explicit requests. SQLite stores usage limits and request identities, not wallet records.                                                                            |
+| Connected tools         | OpenAI explains selected summaries, Google Cloud Vision recognises receipt text, and Python/Flask/Prophet provides expense forecasts.                                                                             |
 
-| Reports                                                                                                                                                         | What-if simulator                                                                                                                                      |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| <a href="docs/images/reports.png"><img src="docs/images/reports.png" alt="Recorded expenses and category shares for the applied report period" width="320"></a> | <a href="docs/images/simulator.png"><img src="docs/images/simulator.png" alt="Hypothetical cash-flow scenario and illustrative score" width="320"></a> |
-| The leading four of seven October expense categories. Shares use the full RM2,778.30 expense total.                                                             | Explore how RM500 less in October expenses changes the calculated result, without changing saved records.                                              |
+Firebase, OpenAI, Google Cloud Vision and Flask/Prophet were also part of the original project. The [integration guide](docs/ORIGINAL_SERVICE_INTEGRATIONS.md) explains the architecture changes. Use your own Firebase project and private server configuration for hosted services.
 
-| Loan calculator                                                                                                                    | Expense forecast                                                                                                                                             |
-| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| <a href="docs/images/loan.png"><img src="docs/images/loan.png" alt="Loan payment calculation with applied inputs" width="320"></a> | <a href="docs/images/forecast.png"><img src="docs/images/forecast.png" alt="Local Prophet comparison for completed monthly expense history" width="320"></a> |
-| Calculate fixed-rate payments, interest and repayment totals from explicit inputs.                                                 | Six local Prophet estimates trained on 18 completed expense months through September 2026, shown beside the device method.                                   |
-
-### Capture, explain and preserve
-
-| Receipt review                                                                                                                                                                | Financial assistant                                                                                                                                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a href="docs/images/receipt.png"><img src="docs/images/receipt.png" alt="Windows OCR receipt review with a manually entered total and recognition warnings" width="320"></a> | <a href="docs/images/assistant.png"><img src="docs/images/assistant.png" alt="OpenAI assistant question form before submission" width="320"></a> |
-| Windows OCR suggested the title, date and currency. No total was auto-filled; RM12.50 was entered manually after checking the receipt.                                        | Review the applied dates and selected financial summaries before asking OpenAI. The question form is shown before submission; no generated answer is displayed.                 |
-
-| Backup preview                                                                                                                                                            | Exported report                                                                                                                                                                                |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a href="docs/images/cloud-backup.png"><img src="docs/images/cloud-backup.png" alt="Manual Firebase backup preview including the selected receipt photo" width="320"></a> | <a href="docs/images/report-export.png"><img src="docs/images/report-export.png" alt="First page of a three-page Android-exported report covering April 2025 to October 2026" width="320"></a> |
-| Preview the wallet and selected receipt photo before confirming a separate recovery backup. This view uses local Firebase emulators.                                      | First of three pages of the app-exported report for April 2025 through October 2026, covering 277 transactions and 19 monthly rows. Rendered locally for readability.                          |
-
-The captions distinguish local Windows OCR and Prophet runs from the OpenAI form before submission and the Firebase-emulator preview. Eleven images are native Android captures; the report image is a faithful rendering of the exported PDF page. Click an image for full resolution. The [UI guide](docs/UI_DESIGN.md#native-android-gallery) has three more views from an earlier checkpoint, and [Verification](VERIFICATION.md) records the checks behind them.
-
-## What works where
-
-| Capability                   | Implementation                                                                                                                                            | Setup and limits                                                                                                                              |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guest finances               | Transactions, eight currencies, categories, calendar budgets, one savings goal and reconciled reports                                                     | Device-local records with exact minor-unit amounts; no account or server required                                                             |
-| Firebase account wallet      | Auth, everyday Firestore records, account-owned Storage attachments, confirmed device-wallet copying and manual backups                                  | Use your own Firebase project. Saves need server confirmation. Offline viewing uses the last confirmed copy; offline edits are not merged automatically |
-| Financial assistant          | OpenAI explains selected summaries and suggests budgeting/saving changes; dates and comparisons are editable, and conversation history stays on the device | Configure the authenticated backend and a compatible model. The assistant cannot make financial changes                                      |
-| Receipt recognition          | Google Cloud Vision supplies editable suggestions; the user reviews the image, amount, date, currency and category before saving                          | Explicit recognition request through the configured backend; photo retention is a separate choice                                             |
-| Prophet forecast             | Flask/Prophet projects six future expense months from completed monthly totals                                                                            | Configured backend with its Python environment; a separate device calculation remains available offline                                       |
-| Calculators and native tools | Illustrative cash-flow score, what-if simulator, loan schedule, achievements, reminders, photos, selected contact/place labels, PDF export and QR sharing | Installed project app and relevant permissions; map tiles/address lookup need network/provider availability                                   |
-| Display and unfinished work  | System/Light/Dark appearance, Activity balance visibility, retained transaction/budget/goal drafts                                                        | Device-local preferences and drafts. Hiding the home balance does not hide transaction amounts or reports                                     |
-| Optional local service route | Qwen through Lemonade, Windows OCR, the Auth-only emulator and local Prophet                                                                              | The paired Windows companion requires a debug build and Android emulator. Configure the route before starting/reloading the bundle; hosted failure never selects it automatically |
-
-[Original service integrations](docs/ORIGINAL_SERVICE_INTEGRATIONS.md) explains how the architecture differs from the original implementation. Follow [Backend setup](tools/backend/README.md) to run the service independently of a nearby Windows computer. Windows Prophet runs are recorded separately from the device calculations. Live OpenAI/Vision calls, public deployment and native Linux/container execution remain unverified.
-
-## Find your way around
-
-- **Activity:** add and review transactions. The balance includes all dates, while the activity list can show one month. Show/Hide affects only the top balance.
-- **Plan:** manage category budgets and a savings target. These plans do not move or reserve money. Unfinished transaction, budget and goal forms can be resumed from device-local drafts.
-- **Reports:** review balances for the selected period, export a PDF, try a scenario or view an eligible expense forecast.
-- **Wallet:** change the wallet settings, choose System, Light or Dark appearance, and open tools. **Wallet > Connections** (under Tools) contains Account, Cloud wallet, Cloud backup, receipt recognition, the assistant and forecasts. Open a report before using the assistant; its dates can then be reviewed or changed.
-
-Configuring a service adds shortcuts to the relevant screens. The app checks availability when you request the feature. The header shows the wallet, action results and recovery messages rather than a permanent connection-readiness message.
-
-The [UI guide](docs/UI_DESIGN.md) covers the Apple-inspired grouping, platform fonts, amount display and keyboard-aware sheets, with more native screens. [Verification](VERIFICATION.md) records the local and optional-service walkthroughs and their limits.
+Cloud saves require server confirmation. Offline viewing uses the last confirmed copy; offline edits are not merged automatically. The optional Windows route provides Lemonade/Qwen, Windows OCR and local Prophet, and must be selected explicitly. See [features and service limits](docs/FEATURES.md#what-works-where), [architecture](docs/ARCHITECTURE.md) and [backend setup](tools/backend/README.md).
 
 ## Run the Android app
 
